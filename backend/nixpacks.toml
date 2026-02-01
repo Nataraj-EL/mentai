@@ -1,5 +1,5 @@
-[providers.python]
-version = "3.11"
+# Nixpacks configuration for Django
+providers = ["python"]
 
 [phases.setup]
 nixPkgs = ["python311"]
