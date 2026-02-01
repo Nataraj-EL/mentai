@@ -36,19 +36,46 @@ class MentAIAskView(APIView):
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
             
-            response = model.generate_content(query)
+            # 3. Retry Logic: 2 retries (total 3 attempts) with small delay
+            max_retries = 2
+            last_exception = None
             
-            if response and response.text:
-                return Response({
-                    "answer": response.text,
-                    "timestamp": timezone.now().isoformat()
-                }, status=status.HTTP_200_OK)
-            else:
-                raise ValueError("Empty response from AI")
+            for attempt in range(max_retries + 1):
+                try:
+                    response = model.generate_content(query)
+                    
+                    if response and response.text:
+                        return Response({
+                            "answer": response.text,
+                            "timestamp": timezone.now().isoformat()
+                        }, status=status.HTTP_200_OK)
+                    else:
+                        raise ValueError("Empty response from AI service")
 
-        except Exception as e:
-            logger.error(f"Gemini API failure: {str(e)}")
+                except Exception as e:
+                    last_exception = e
+                    logger.warning(
+                        f"Attempt {attempt + 1} failed for /api/v1/ask. "
+                        f"Exception: {str(e)} | Timestamp: {timezone.now().isoformat()}"
+                    )
+                    if attempt < max_retries:
+                        import time
+                        time.sleep(0.5) # 0.5s delay between retries
+            
+            # If all retries fail
+            logger.error(
+                f"Gemini API failure after {max_retries + 1} attempts. "
+                f"Status: {getattr(last_exception, 'status_code', 'N/A')} | "
+                f"Error: {str(last_exception)} | Timestamp: {timezone.now().isoformat()}"
+            )
             return Response({
                 "answer": "I'm sorry, I'm having trouble processing your request right now. Please try again later.",
                 "timestamp": timezone.now().isoformat()
-            }, status=status.HTTP_200_OK) # Returning 200 with fallback message as per "graceful fallback" requirement
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Unexpected error in /api/v1/ask: {str(e)}")
+            return Response({
+                "answer": "An unexpected error occurred. Please try again later.",
+                "timestamp": timezone.now().isoformat()
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
