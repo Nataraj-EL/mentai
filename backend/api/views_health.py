@@ -1,9 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+import os
 
 class HealthCheckView(APIView):
     def get(self, request):
-        import os
         return Response({
             "status": "ok",
             "service": "MentAI Backend",
