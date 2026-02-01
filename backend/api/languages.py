@@ -61,10 +61,45 @@ class LanguageRegistry:
         },
         "solidity": {
             "name": "Solidity",
-            "judge0_id": None,  # Not supported natively by Judge0 CE usually, mostly FE only or specialized
+            "judge0_id": None,
             "monaco_id": "sol",
             "aliases": ["sol"],
             "extension": "sol"
+        },
+        "csharp": {
+            "name": "C#",
+            "judge0_id": 51,
+            "monaco_id": "csharp",
+            "aliases": ["c#", "cs"],
+            "extension": "cs"
+        },
+        "ruby": {
+            "name": "Ruby",
+            "judge0_id": 72,
+            "monaco_id": "ruby",
+            "aliases": ["rb"],
+            "extension": "rb"
+        },
+        "php": {
+            "name": "PHP",
+            "judge0_id": 68,
+            "monaco_id": "php",
+            "aliases": [],
+            "extension": "php"
+        },
+        "swift": {
+            "name": "Swift",
+            "judge0_id": 83,
+            "monaco_id": "swift",
+            "aliases": [],
+            "extension": "swift"
+        },
+        "kotlin": {
+            "name": "Kotlin",
+            "judge0_id": 78,
+            "monaco_id": "kotlin",
+            "aliases": ["kt"],
+            "extension": "kt"
         }
     }
 

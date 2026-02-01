@@ -47,15 +47,17 @@ class TopicClassifier:
         # Non-Executable / Theory / Markup
         "html":       ("MARKUP", "html", False, "HTML5"),
         "css":        ("MARKUP", "css", False, "CSS3"),
-        "sql":        ("THEORY", "general", False, "SQL Database Design"),    # No code exec
+        "sql":        ("THEORY", "general", False, "SQL Database Design"),
         "mongodb":    ("THEORY", "general", False, "MongoDB Fundamentals"),
         "solidity":   ("THEORY", "general", False, "Solidity & Smart Contracts"),
-        "ruby":       ("THEORY", "general", False, "Ruby Programming"),
-        "c#":         ("THEORY", "general", False, "C# Development"),
-        "swift":      ("THEORY", "general", False, "Swift iOS Development"),
-        "kotlin":     ("THEORY", "general", False, "Kotlin Android Development"),
-        "dart":       ("THEORY", "general", False, "Dart & Flutter"),
-        "php":        ("THEORY", "general", False, "PHP Web Development")
+        
+        # Newly Enabled Executables
+        "ruby":       ("EXECUTABLE", "ruby", True, "Ruby Programming"),
+        "c#":         ("EXECUTABLE", "csharp", True, "C# Development"),
+        "swift":      ("EXECUTABLE", "swift", True, "Swift iOS Development"),
+        "kotlin":     ("EXECUTABLE", "kotlin", True, "Kotlin Android Development"),
+        "php":        ("EXECUTABLE", "php", True, "PHP Web Development"),
+        "dart":       ("THEORY", "general", False, "Dart & Flutter")
     }
 
     @staticmethod
