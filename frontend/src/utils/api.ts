@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 export const API = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://mentai-production.up.railway.app/api',
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL
+    ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api`
+    : (process.env.NEXT_PUBLIC_API_URL || 'https://mentai-production.up.railway.app/api'),
 });
 
 export const generateCourse = async (topic: string, language: string = 'python') =>
