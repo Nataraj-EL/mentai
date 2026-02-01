@@ -10,6 +10,8 @@ if not api_key:
     print("No API Key")
     exit(1)
 
+print(f"Using API Key ending in: ...{api_key[-4:]}")
+
 genai.configure(api_key=api_key)
 
 models = ['gemini-1.5-flash', 'gemini-pro', 'gemini-1.0-pro']

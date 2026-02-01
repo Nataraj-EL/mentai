@@ -15,7 +15,7 @@ class GeminiService:
         else:
             try:
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.model = genai.GenerativeModel('gemini-2.0-flash')
                 self.client = True # Flag to indicate success
                 
                 # Log version if possible
