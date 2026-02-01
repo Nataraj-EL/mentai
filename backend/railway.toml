@@ -1,6 +1,6 @@
 [build]
-builder = "RAILPACK"
-root = "backend"
+builder = "NIXPACKS"
+root = "."
 
 [deploy]
 runtime = "V2"
