@@ -2,7 +2,6 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
-import axios from "axios";
 import { API } from "../../../src/utils/api";
 
 import CredentialsProvider from "next-auth/providers/credentials";
