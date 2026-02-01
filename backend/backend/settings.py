@@ -103,16 +103,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 
 # ✅ CORS settings
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow all for development only
-
-if not DEBUG:
-    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-else:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:5173",
-    ]
+CORS_ALLOW_ALL_ORIGINS = True  # Allowed for all origins as per requirements
 
 # Allow all required HTTP methods
 CORS_ALLOW_METHODS = [
