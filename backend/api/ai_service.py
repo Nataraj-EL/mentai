@@ -133,6 +133,32 @@ class GeminiService:
         
         return self._generate_json(prompt)
 
+    def ask_mentai(self, query):
+        """
+        Custom chat assistant method for MentAI.
+        """
+        if not self.client:
+            return None
+
+        prompt = f"""
+        You are MentAI, an expert AI learning assistant.
+        The user is asking: "{query}"
+        
+        Provide a concise, helpful, and encouraging response.
+        If the user asks for code, provide clean, well-commented code snippets.
+        Focus on being a 'learning buddy' rather than just a search engine.
+        """
+        
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return response.text if response and hasattr(response, 'text') else None
+        except Exception as e:
+            logger.error(f"MentAI chat error: {str(e)}")
+            return None
+
     def _generate_json(self, prompt):
         """
         Helper method to generate content and parse JSON.
