@@ -60,7 +60,7 @@ class GeminiService:
                     time.sleep(0.5)
                 else:
                     logger.error(f"MentAI chat error after {max_retries + 1} attempts: {str(e)}")
-                    return None
+                    return f"DEBUG_ERROR: {str(e)}"
 
     def generate_course_structure(self, topic, language, level="Beginner"):
         """
