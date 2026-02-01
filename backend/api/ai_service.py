@@ -1,4 +1,4 @@
-from google import genai
+import google.generativeai as genai
 import os
 import json
 import logging
@@ -11,22 +11,63 @@ class GeminiService:
         if not self.api_key:
             logger.warning("GEMINI_API_KEY not found in environment variables.")
             self.client = None
+            self.model = None
         else:
-            self.client = genai.Client(api_key=self.api_key, http_options={'api_version': 'v1'})
-            self.model_name = 'gemini-1.5-flash'
-            import importlib.metadata
             try:
-                ver = importlib.metadata.version("google-genai")
-                logger.info(f"Initialized GeminiService with google-genai version: {ver}")
-            except:
-                logger.info("Initialized GeminiService with unknown google-genai version")
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.client = True # Flag to indicate success
+                
+                # Log version if possible
+                import importlib.metadata
+                try:
+                    ver = importlib.metadata.version("google-generativeai")
+                    logger.info(f"Initialized GeminiService with google-generativeai version: {ver}")
+                except:
+                    pass
+            except Exception as e:
+                logger.error(f"Failed to configure Gemini: {e}")
+                self.client = None
+                self.model = None
+
+    def ask_mentai(self, query):
+        """
+        Custom chat assistant method for MentAI with retry logic.
+        Retries up to 2 times (3 total attempts) with 0.5s delay.
+        """
+        if not self.model:
+            return None
+
+        prompt = f"""
+        You are MentAI, an expert AI learning assistant.
+        The user is asking: "{query}"
+        
+        Provide a concise, helpful, and encouraging response.
+        If the user asks for code, provide clean, well-commented code snippets.
+        Focus on being a 'learning buddy' rather than just a search engine.
+        """
+        
+        max_retries = 2
+        import time
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.model.generate_content(prompt)
+                return response.text if response else None
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries:
+                    time.sleep(0.5)
+                else:
+                    logger.error(f"MentAI chat error after {max_retries + 1} attempts: {str(e)}")
+                    return None
 
     def generate_course_structure(self, topic, language, level="Beginner"):
         """
         Generates a structured course outline with 10 modules using Gemini.
         Returns a JSON object with the course structure.
         """
-        if not self.client:
+        if not self.model:
             return None
 
         prompt = f"""
@@ -59,7 +100,7 @@ class GeminiService:
         Generates detailed content for a specific module using Gemini.
         Returns a JSON object with the module content.
         """
-        if not self.client:
+        if not self.model:
             return None
 
         # SAFETY CHECK: If topic is unknown/general, do NOT generate python code.
@@ -133,47 +174,17 @@ class GeminiService:
         
         return self._generate_json(prompt)
 
-    def ask_mentai(self, query):
-        """
-        Custom chat assistant method for MentAI.
-        """
-        if not self.client:
-            return None
-
-        prompt = f"""
-        You are MentAI, an expert AI learning assistant.
-        The user is asking: "{query}"
-        
-        Provide a concise, helpful, and encouraging response.
-        If the user asks for code, provide clean, well-commented code snippets.
-        Focus on being a 'learning buddy' rather than just a search engine.
-        """
-        
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
-            return response.text if response and hasattr(response, 'text') else None
-        except Exception as e:
-            logger.error(f"MentAI chat error: {str(e)}")
-            return None
-
     def _generate_json(self, prompt):
         """
         Helper method to generate content and parse JSON.
         """
-        if not self.client:
+        if not self.model:
             return None
 
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt
-            )
+            response = self.model.generate_content(prompt)
             
             # Simple validation to ensure it didn't return Markdown code blocks wrapping the JSON
-            # New SDK usually returns cleaned text if MIME type is set, but extra safety:
             text = response.text.strip()
             if text.startswith("```json"):
                 text = text[7:]
