@@ -1,8 +1,12 @@
-# Optimized Nixpacks configuration for Django
-providers = ["python"]
+# Explicitly include pip in the setup phase
+[phases.setup]
+nixPkgs = ["python311", "python311Packages.pip", "gcc"]
 
 [phases.install]
-cmds = ["python3 -m pip install -r requirements.txt", "python3 manage.py collectstatic --no-input"]
+cmds = ["pip install -r requirements.txt"]
+
+[phases.build]
+cmds = ["python manage.py collectstatic --no-input"]
 
 [start]
 cmd = "gunicorn backend.wsgi:application --log-file -"
