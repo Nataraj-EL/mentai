@@ -3,7 +3,11 @@ from rest_framework.response import Response
 
 class HealthCheckView(APIView):
     def get(self, request):
-        return Response({"status": "ok"}, status=200)
+        return Response({
+            "status": "ok",
+            "service": "MentAI Backend",
+            "environment": "production"
+        }, status=200)
 
 def root_status(request):
     from django.http import JsonResponse
