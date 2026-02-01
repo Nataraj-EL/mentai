@@ -1,0 +1,24 @@
+# Python / Django
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Logs
+*.log
+nohup.out
+test_output.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
