@@ -1,6 +1,4 @@
-# Optimized Nixpacks configuration for Django using virtualenv
-providers = ["python"]
-
+# Robust Nixpacks configuration for Django
 [phases.setup]
 nixPkgs = ["python311", "gcc"]
 
@@ -12,7 +10,9 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["/opt/venv/bin/python manage.py collectstatic --no-input"]
+cmds = [
+    "/opt/venv/bin/python manage.py collectstatic --no-input"
+]
 
 [start]
 cmd = "/opt/venv/bin/gunicorn backend.wsgi:application --log-file -"
