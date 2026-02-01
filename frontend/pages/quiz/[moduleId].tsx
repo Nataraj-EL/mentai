@@ -1,9 +1,9 @@
 "use client"
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import axios from "axios";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
+import { API } from "../../src/utils/api";
 import PDFExporter from "../../src/components/PDFExporter";
 
 interface Question {
@@ -189,7 +189,7 @@ export default function QuizPage() {
         }
 
         if (topicSlug) {
-          await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/progress/update/`, {
+          await API.post(`/progress/update/`, {
             email: session.user.email,
             topic_slug: topicSlug.toLowerCase(),
             module_id: parseInt(moduleId as string),

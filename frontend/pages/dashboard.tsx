@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import axios from 'axios';
+import { API } from '../src/utils/api';
 
 interface CourseProgress {
     topic_slug: string;
@@ -22,7 +22,7 @@ const Dashboard = () => {
         const fetchDashboard = async () => {
             if (session?.user?.email) {
                 try {
-                    const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/dashboard/?email=${session.user.email}`);
+                    const res = await API.get(`/dashboard/?email=${session.user.email}`);
                     setCourses(res.data.courses || []);
                 } catch (err) {
                     console.error("Dashboard fetch error:", err);

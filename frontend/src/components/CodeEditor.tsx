@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { API } from '../utils/api';
 
 interface CodeEditorProps {
   code: string;
@@ -51,7 +52,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     try {
       // Use backend API for all languages (Judge0)
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/execute-code/`, {
+      const response = await API.post(`/execute-code/`, {
         code: currentCode,
         language: language,
         topic: topic // Include topic in payload

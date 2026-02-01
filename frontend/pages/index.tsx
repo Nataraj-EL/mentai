@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
+import { API } from "../src/utils/api";
 import CodeEditor from "../src/components/CodeEditor";
 import PDFExporter from "../src/components/PDFExporter";
 
@@ -178,7 +179,7 @@ export default function Home() {
         }
       }, 1000);
 
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/generate-course/`, { topic });
+      const res = await API.post(`/generate-course/`, { topic });
       setCourse(res.data);
       setCurrentModule(0);
 

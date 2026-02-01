@@ -3,6 +3,7 @@ import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
 import axios from "axios";
+import { API } from "../../../src/utils/api";
 
 import CredentialsProvider from "next-auth/providers/credentials";
 
@@ -37,7 +38,7 @@ export default NextAuth({
         async signIn({ user, account }) {
             // Sync user with Django Backend
             try {
-                await axios.post(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/auth/sync/`, {
+                await API.post(`/auth/sync/`, {
                     email: user.email,
                     name: user.name,
                     provider: account?.provider,
