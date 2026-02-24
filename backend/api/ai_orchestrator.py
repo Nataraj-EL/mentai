@@ -21,7 +21,7 @@ class AIOrchestrator:
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         if self.gemini_key:
             genai.configure(api_key=self.gemini_key)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            self.gemini_model = genai.GenerativeModel('gemini-flash-latest')
         else:
             self.gemini_model = None
 
