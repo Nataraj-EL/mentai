@@ -100,135 +100,69 @@ class GenerateCourseView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create_course_structure_fast(self, topic, language=None, execution_enabled=True, topic_type="EXECUTABLE"):
-        """Dynamic course generation using Gemini AI with static fallback"""
+        """Dynamic course generation using Hybrid Multi-LLM Orchestrator"""
         if not language:
             language = self.detect_programming_language(topic)
             
-        # Try Gemini Generation First
         try:
-            from .ai_service import GeminiService
-            ai_service = GeminiService()
+            from .ai_orchestrator import AIOrchestrator
+            orchestrator = AIOrchestrator()
             
-            if ai_service.client:
-                print(f"Attempting valid Gemini generation for: {topic}")
-                course_outline = ai_service.generate_course_structure(topic, language)
-                
-                if course_outline and "modules" in course_outline:
-                    # Transform structure to match frontend expectations
-                    modules = []
-                    for mod in course_outline["modules"]:
-                        mod_num = mod.get("module_number", len(modules) + 1)
-                        # Generate detailed content for each module using Gemini
-                        module_content = ai_service.generate_module_content(topic, language, mod["title"], mod_num)
-                        
-                        if not module_content:
-                            # Fallback to static content for this module if AI fails
-                            difficulty = "beginner" if mod_num <= 3 else "intermediate" if mod_num <= 7 else "advanced"
-                            module_content = self.generate_unique_module_content(language, mod["title"], mod_num, difficulty, mod_num-1, topic=topic, topic_type=topic_type)
-                        
-                        module_data = {
-                            "id": mod_num,
-                            "name": f"Module {mod_num}: {mod['title']}",
-                            "description": mod.get("description", ""),
-                            "difficulty": mod.get("difficulty", "Intermediate"),
-                            "order": mod_num,
-                            "content": module_content.get("content", mod.get("description")),
-                            "subsections": [
-                                {"title": obj, "content": obj} for obj in mod.get("learning_objectives", [])
-                            ],
-                            # New Fields
-                            "theory": module_content.get("theory", get_module_theory(language, mod["title"], mod_num)),
-                            "mini_project": module_content.get("mini_project", get_mini_project(language, mod["title"], mod_num)),
-                            
-                            # Legacy
-                            "code_examples": module_content.get("code_examples", []),
-                            "real_world_examples": module_content.get("real_world_examples", []),
-                            "mini_labs": module_content.get("mini_labs", []),
-                            "quizzes": module_content.get("quizzes", []),
-                            "learning_outcome": module_content.get("learning_outcome", "Master this module."),
-                            "practice_problems": get_practice_problems(topic, mod["title"]),
-                            "preloaded_code": get_prebuilt_code_snippet(topic, topic_type, mod_num-1, mod["title"])
-                        }
+            print(f"Attempting valid Multi-LLM AI generation for: {topic}")
+            course_outline = orchestrator.generate_course_structure(topic, language)
+            
+            if course_outline and "modules" in course_outline and len(course_outline["modules"]) > 0:
+                modules = []
+                for mod in course_outline["modules"]:
+                    mod_num = mod.get("module_number", len(modules) + 1)
+                    
+                    # Generate detailed content for each module dynamically in parallel
+                    module_content = orchestrator.generate_complete_module(topic, language, mod["title"], mod_num)
+                    
+                    if not module_content:
+                        raise ValueError(f"AI Orchestrator failed to generate content for module {mod_num}")
+                    
+                    module_data = {
+                        "id": mod_num,
+                        "name": f"Module {mod_num}: {mod['title']}",
+                        "description": mod.get("description", ""),
+                        "difficulty": mod.get("difficulty", "Intermediate"),
+                        "order": mod_num,
+                        "content": module_content.get("content", mod.get("description", "")),
+                        "subsections": [
+                            {"title": obj, "content": obj} for obj in mod.get("learning_objectives", [])
+                        ],
+                        # Real AI content
+                        "theory": module_content.get("theory", "Content generated by MentAI"),
+                        "mini_project": module_content.get("mini_project", ""),
+                        "code_examples": module_content.get("code_examples", []),
+                        "real_world_examples": module_content.get("real_world_examples", []),
+                        "mini_labs": module_content.get("mini_labs", []),
+                        "quizzes": module_content.get("quizzes", []),
+                        "learning_outcome": module_content.get("learning_outcome", f"Master module {mod_num}."),
+                        "practice_problems": [],
+                        "preloaded_code": ""
+                    }
                     modules.append(module_data)
 
-                    return {
-                        "course_title": course_outline.get("course_title", f"Complete {topic} Mastery Course"),
-                        "course_content": course_outline.get("course_description", f"A comprehensive course covering {topic}."),
-                        "topic": topic,
-                        "modules": modules,
-                        "metadata": {
-                            "language": language,
-                            "execution_enabled": execution_enabled,
-                            "topic_type": topic_type
-                        }
+                return {
+                    "course_title": course_outline.get("course_title", f"Course on {topic}"),
+                    "course_content": course_outline.get("course_description", f"A comprehensive course covering {topic}."),
+                    "topic": topic,
+                    "modules": modules,
+                    "metadata": {
+                        "language": language,
+                        "execution_enabled": execution_enabled,
+                        "topic_type": topic_type
                     }
-        except Exception as e:
-            print(f"Gemini generation failed: {e}. Falling back to static content.")
-            import traceback
-            traceback.print_exc()
-
-        # FALLBACK: Existing Static Logic
-        print("Using static generation fallback...")
-        module_titles = get_module_titles(language)
-        
-        # STRICT CONTENT INTEGRITY CHECK
-        # If no syllabus exists (None), return "Under Construction".
-        if not module_titles:
-             return {
-                "course_title": f"{topic} (Pending Content)",
-                "course_content": f"We are actively building structured content for {topic}. Interactive modules are coming soon.",
-                "topic": topic,
-                "modules": [], # No modules generated
-                "metadata": {
-                    "language": language,
-                    "execution_enabled": False,
-                    "topic_type": "THEORY",
-                    "is_pending": True
                 }
-            }
-
-        modules = []
-        for i, title in enumerate(module_titles):
-            module_number = i + 1
-            difficulty = "beginner" if module_number <= 3 else "intermediate" if module_number <= 7 else "advanced"
-            
-            module_content = self.generate_unique_module_content(language, title, module_number, difficulty, i, topic=topic, topic_type=topic_type)
-            
-            module_data = {
-                "id": module_number,
-                "name": f"Module {module_number}: {title}",
-                "description": "", # Duration removed
-                "difficulty": difficulty,
-                "order": module_number,
-                "content": module_content.get("content", f"Learn about {title}."),
-                "subsections": [
-                    {"title": obj, "content": obj} for obj in get_module_objectives(language, title, module_number)
-                ],
-                # New fields
-                "theory": module_content.get("theory", get_module_theory(language, title, module_number)),
-                "mini_project": module_content.get("mini_project", get_mini_project(language, title, module_number)),
-                # Legacy
-                "code_examples": module_content.get("code_examples", []),
-                "real_world_examples": module_content.get("real_world_examples", []),
-                "mini_labs": module_content.get("mini_labs", []),
-                "quizzes": module_content.get("quizzes", []),
-                "learning_outcome": module_content.get("learning_outcome", "Master this module."),
-                "practice_problems": get_practice_problems(topic, title),
-                "preloaded_code": get_prebuilt_code_snippet(topic, topic_type, i, module_title=title)
-            }
-            modules.append(module_data)
-        
-        return {
-            "course_title": f"Complete {topic} Mastery Course",
-            "course_content": f"A comprehensive course covering {topic}.",
-            "topic": topic,
-            "modules": modules,
-            "metadata": {
-                "language": language,
-                "execution_enabled": execution_enabled,
-                "topic_type": topic_type
-            }
-        }
+            else:
+                raise ValueError("Failed to generate course structure. AI returned empty or invalid response.")
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            print(f"[Backend Error] Exception in create_course_structure_fast: {tb}")
+            raise ValueError(f"AI Content Generation Failed: {e}")
 
     def generate_unique_module_content(self, language, module_title, module_number, difficulty, module_index, topic="", topic_type="EXECUTABLE"):
         """Generate unique, context-specific content for each module"""
