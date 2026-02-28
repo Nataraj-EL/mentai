@@ -112,19 +112,21 @@ class GenerateCourseView(APIView):
             course_outline = orchestrator.generate_course_structure(topic, language)
             
             if course_outline and "modules" in course_outline and len(course_outline["modules"]) > 0:
+                # Batch generate all content in 3 parallel calls (Theory, Quizzes, Labs) to avoid rate limits
+                print(f"Batch generating content for {len(course_outline['modules'])} modules...")
+                all_modules_content = orchestrator.generate_course_content_batched(topic, language, course_outline)
+                
+                if not all_modules_content:
+                    raise ValueError("AI Orchestrator returned empty batched content.")
+
                 modules = []
                 for mod in course_outline["modules"]:
                     mod_num = mod.get("module_number", len(modules) + 1)
-                    
-                    # Generate detailed content for each module dynamically in parallel
-                    module_content = orchestrator.generate_complete_module(topic, language, mod["title"], mod_num)
-                    
-                    if not module_content:
-                        raise ValueError(f"AI Orchestrator failed to generate content for module {mod_num}")
+                    module_content = all_modules_content.get(str(mod_num), {})
                     
                     module_data = {
                         "id": mod_num,
-                        "name": f"Module {mod_num}: {mod['title']}",
+                        "name": f"Module {mod_num}: {mod.get('title', 'Untitled')}",
                         "description": mod.get("description", ""),
                         "difficulty": mod.get("difficulty", "Intermediate"),
                         "order": mod_num,
