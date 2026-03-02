@@ -67,9 +67,16 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Check if Render's persistent disk `/data` exists
+RENDER_DATA_DIR = Path("/data")
+if RENDER_DATA_DIR.exists():
+    default_db_url = f'sqlite:////{RENDER_DATA_DIR / "db.sqlite3"}'
+else:
+    default_db_url = f'sqlite:////{BASE_DIR / "db.sqlite3"}'
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:////{BASE_DIR / "db.sqlite3"}',
+        default=default_db_url,
         conn_max_age=600
     )
 }
