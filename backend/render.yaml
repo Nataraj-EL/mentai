@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: mentai-backend
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn backend.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.6
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: 4
+      - key: DJANGO_DEBUG
+        value: "False"
+      # IMPORTANT: To make this work smoothly, add these via the Render Dashboard manually, 
+      # or uncomment and fill in their actual values here (NOT recommended for secret keys):
+      # - key: DATABASE_URL
+      #   sync: false 
+      # - key: GEMINI_API_KEY
+      #   sync: false
+      # - key: RAPIDAPI_KEY
+      #   sync: false
