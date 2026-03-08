@@ -24,14 +24,18 @@ export default NextAuth({
                 }
             }
         }),
-        GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID || "",
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-        }),
-        GithubProvider({
-            clientId: process.env.GITHUB_ID || "",
-            clientSecret: process.env.GITHUB_SECRET || "",
-        }),
+        ...(process.env.GOOGLE_CLIENT_ID ? [
+            GoogleProvider({
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+            })
+        ] : []),
+        ...(process.env.GITHUB_ID ? [
+            GithubProvider({
+                clientId: process.env.GITHUB_ID,
+                clientSecret: process.env.GITHUB_SECRET || "",
+            })
+        ] : []),
     ],
     callbacks: {
         async signIn({ user, account }) {
