@@ -3,7 +3,7 @@ services:
     name: mentai-backend
     env: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn backend.wsgi:application"
+    startCommand: "gunicorn backend.wsgi:application --timeout 120"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.6
