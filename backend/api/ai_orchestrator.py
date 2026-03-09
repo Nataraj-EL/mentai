@@ -21,7 +21,7 @@ class AIOrchestrator:
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         if self.gemini_key:
             genai.configure(api_key=self.gemini_key)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         else:
             self.gemini_model = None
 
@@ -74,6 +74,8 @@ class AIOrchestrator:
         Ensure there are exactly 10 modules. Do not include the phrase 'Master this concept.' Return ONLY raw JSON.
         """
         raw_output = self._call_gemini(prompt)
+        if not raw_output:
+            raw_output = self._call_groq(prompt)
         return self._safe_parse_json(raw_output, {})
 
     def generate_theory(self, topic, language, module_title, module_number):
@@ -93,6 +95,8 @@ class AIOrchestrator:
         }}
         """
         raw_output = self._call_gemini(prompt)
+        if not raw_output:
+            raw_output = self._call_groq(prompt)
         return self._safe_parse_json(raw_output, {"theory": f"Theory for {module_title}", "real_world_examples": []})
 
     def generate_quizzes(self, topic, language, module_title, module_number):
