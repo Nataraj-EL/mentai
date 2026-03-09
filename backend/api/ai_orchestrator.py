@@ -21,7 +21,7 @@ class AIOrchestrator:
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         if self.gemini_key:
             genai.configure(api_key=self.gemini_key)
-            self.gemini_model = genai.GenerativeModel('gemini-flash-latest')
+            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
         else:
             self.gemini_model = None
 
@@ -76,103 +76,100 @@ class AIOrchestrator:
         raw_output = self._call_gemini(prompt)
         return self._safe_parse_json(raw_output, {})
 
-    def generate_all_theory(self, topic, language, modules_list):
-        module_titles = [f"Module {m['module_number']}: {m['title']}" for m in modules_list]
+    def generate_theory(self, topic, language, module_title, module_number):
         prompt = f"""
-        Generate detailed theoretical content for the following modules of the course "{topic}" ({language}):
-        {module_titles}
-        
-        Return ONLY a complete JSON object mapping module numbers (as strings) to their theory content:
+        Generate detailed theoretical content for Module {module_number}: "{module_title}" of the course "{topic}" ({language}).
+        Return ONLY a JSON object:
         {{
-            "1": {{
-                "content": "Detailed markdown formatted explanatory text...",
-                "real_world_examples": [
-                    {{"title": "...", "description": "...", "solution": "...", "learning_outcome": "..."}}
-                ]
-            }},
-            "2": {{ ... }}
+            "theory": "Detailed markdown formatted explanatory text...",
+            "real_world_examples": [
+                {{
+                    "title": "Use Case",
+                    "description": "...",
+                    "solution": "...",
+                    "learning_outcome": "..."
+                }}
+            ]
         }}
         """
-        raw_output = self._call_gemini(prompt, retries=3)
-        return self._safe_parse_json(raw_output, {})
+        raw_output = self._call_gemini(prompt)
+        return self._safe_parse_json(raw_output, {"theory": f"Theory for {module_title}", "real_world_examples": []})
 
-    def generate_all_quizzes(self, topic, language, modules_list):
-        module_titles = [f"Module {m['module_number']}: {m['title']}" for m in modules_list]
+    def generate_quizzes(self, topic, language, module_title, module_number):
         prompt = f"""
-        Generate exactly 5 rigorous quiz questions for EVERY module in the course "{topic}" ({language}). 
-        Modules: {module_titles}
-        
-        Return ONLY a JSON object mapping module numbers (as strings) to their quizzes:
+        Generate exactly 10 quiz questions for Module {module_number}: "{module_title}" of "{topic}" ({language}).
+        Return ONLY a JSON object containing an array field "quizzes":
         {{
-            "1": {{
-                "quizzes": [
-                    {{"question": "?", "options": ["A", "B", "C", "D"], "answer": "A", "explanation": "...", "difficulty": "hard", "type": "multiple_choice"}}
-                ]
-            }},
-            "2": {{ ... }}
+            "quizzes": [
+                {{
+                    "question": "Question text?",
+                    "options": ["Op A", "Op B", "Op C", "Op D"],
+                    "answer": "Op A",
+                    "explanation": "Why this is correct...",
+                    "difficulty": "easy/medium/hard",
+                    "type": "code_prediction"
+                }}
+            ]
         }}
+        Focus on deep reasoning.
         """
-        # Prioritize Groq for speed and rate limits, fallback to Gemini
         raw_output = None
-        if self.groq_client:
-            raw_output = self._call_groq(prompt, retries=2)
+        if self.openai_client:
+            raw_output = self._call_openai(prompt)
         if not raw_output:
-            raw_output = self._call_gemini(prompt, retries=2)
-        return self._safe_parse_json(raw_output, {})
-
-    def generate_all_labs(self, topic, language, modules_list):
-        module_titles = [f"Module {m['module_number']}: {m['title']}" for m in modules_list]
-        prompt = f"""
-        Generate practical coding labs and real-world script examples for EVERY module in "{topic}" ({language}).
-        Modules: {module_titles}
-        
-        Return ONLY a JSON object mapping module numbers (as strings) to their labs:
-        {{
-            "1": {{
-                "code_examples": [
-                    {{"title": "...", "code": "...", "explanation": "...", "language": "{language}"}}
-                ],
-                "mini_labs": [
-                    {{"title": "...", "description": "...", "tasks": ["..."], "expected_outcome": "..."}}
-                ]
-            }},
-            "2": {{ ... }}
-        }}
-        Output raw JSON only. Do not wrap in markdown blocks.
-        """
-        # Groq Llama-3 is excellent for code generation
-        raw_output = None
-        if self.groq_client:
-            raw_output = self._call_groq(prompt, retries=2)
-        if not raw_output:
-            raw_output = self._call_gemini(prompt, retries=2)
-        return self._safe_parse_json(raw_output, {})
-
-    def generate_course_content_batched(self, topic, language, course_outline):
-        """Orchestrates parallel provider calls for ALL modules at once."""
-        modules_list = course_outline.get("modules", [])
-        if not modules_list:
-            return {}
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_theory = executor.submit(self.generate_all_theory, topic, language, modules_list)
-            future_quizzes = executor.submit(self.generate_all_quizzes, topic, language, modules_list)
-            future_labs = executor.submit(self.generate_all_labs, topic, language, modules_list)
-
-            theory_data = future_theory.result() or {}
-            quizzes_data = future_quizzes.result() or {}
-            labs_data = future_labs.result() or {}
-
-        # Merge results into a unified module mapping
-        combined_modules = {}
-        for mod in modules_list:
-            mod_id = str(mod.get("module_number"))
-            combined_modules[mod_id] = {}
-            combined_modules[mod_id].update(theory_data.get(mod_id, {}))
-            combined_modules[mod_id].update(quizzes_data.get(mod_id, {}))
-            combined_modules[mod_id].update(labs_data.get(mod_id, {}))
+            raw_output = self._call_gemini(prompt)
             
-        return combined_modules
+        return self._safe_parse_json(raw_output, {"quizzes": []})
+
+    def generate_labs(self, topic, language, module_title, module_number):
+        prompt = f"""
+        Generate coding labs and examples for Module {module_number}: "{module_title}" of "{topic}" ({language}).
+        Return ONLY a JSON object:
+        {{
+            "code_examples": [
+                {{
+                    "title": "Example Title",
+                    "code": "code snippet...",
+                    "explanation": "Explanation...",
+                    "language": "{language}"
+                }}
+            ],
+            "mini_labs": [
+                 {{
+                    "title": "Lab Title",
+                    "description": "Instructions...",
+                    "tasks": ["Task 1", "Task 2"],
+                    "expected_outcome": "Outcome"
+                 }}
+            ]
+        }}
+        Ensure high quality compilable {language} code.
+        """
+        raw_output = None
+        if self.groq_client:
+            raw_output = self._call_groq(prompt)
+        if not raw_output:
+            raw_output = self._call_gemini(prompt)
+        
+        return self._safe_parse_json(raw_output, {"code_examples": [], "mini_labs": []})
+
+    def generate_complete_module(self, topic, language, module_title, module_number):
+        """Orchestrates parallel provider calls."""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            future_theory = executor.submit(self.generate_theory, topic, language, module_title, module_number)
+            future_quizzes = executor.submit(self.generate_quizzes, topic, language, module_title, module_number)
+            future_labs = executor.submit(self.generate_labs, topic, language, module_title, module_number)
+
+            theory_data = future_theory.result()
+            quizzes_data = future_quizzes.result()
+            labs_data = future_labs.result()
+
+        # Merge results into a unified module dict
+        combined = {}
+        combined.update(theory_data if theory_data else {})
+        combined.update(quizzes_data if quizzes_data else {})
+        combined.update(labs_data if labs_data else {})
+        return combined
 
     # -- Internal Callers with Retry/Failover --
 

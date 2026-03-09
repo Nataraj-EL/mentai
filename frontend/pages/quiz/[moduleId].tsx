@@ -96,13 +96,20 @@ export default function QuizPage() {
               const quizDataSrc = activeM.quizzes || activeM.quiz;
               let questions: Question[] = [];
               if (Array.isArray(quizDataSrc)) {
-                questions = quizDataSrc;
+                questions = quizDataSrc.map((q: Record<string, unknown>, idx: number) => ({
+                  id: q.id ? Number(q.id) : idx + 1,
+                  question: q.question as string,
+                  options: q.options as string[],
+                  answer: (q.answer || q.correct_answer || q.correct_option) as string,
+                  question_type: (q.question_type || "mcq") as string
+                }));
               } else if (quizDataSrc && Array.isArray(quizDataSrc.questions)) {
                 questions = quizDataSrc.questions.map((q: Record<string, unknown>, idx: number) => ({
-                  id: idx + 1,
-                  question: q.question,
-                  options: q.options,
-                  answer: q.answer || q.correct_answer || q.correct_option
+                  id: q.id ? Number(q.id) : idx + 1,
+                  question: q.question as string,
+                  options: q.options as string[],
+                  answer: (q.answer || q.correct_answer || q.correct_option) as string,
+                  question_type: (q.question_type || "mcq") as string
                 }));
               }
               setQuizData({
@@ -147,19 +154,19 @@ export default function QuizPage() {
     localQuizSource.forEach((q, idx) => {
       const qId = idx + 1; // Assuming 1-based index matches
       const userAnswer = answers[qId];
-      const isCorrect = userAnswer === q.correct_answer;
+      const actualCorrectAnswer = q.correct_answer || q.answer;
+      const isCorrect = userAnswer === actualCorrectAnswer;
       if (isCorrect) correctCount++;
 
       quizResults.push({
         question_id: qId,
         question: q.question,
         user_answer: userAnswer,
-        correct_answer: q.correct_answer,
+        correct_answer: actualCorrectAnswer,
         is_correct: isCorrect,
         explanation: q.explanation
       });
     });
-
     const scorePct = (correctCount / localQuizSource.length) * 100;
 
     const submitResponse: SubmitResponse = {
