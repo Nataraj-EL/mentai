@@ -122,7 +122,10 @@ class AIOrchestrator:
             raw_output = self._call_openai(prompt)
         if not raw_output:
             raw_output = self._call_gemini(prompt)
+        if not raw_output:
+            raw_output = self._call_groq(prompt)
             
+        print(f"[DEBUG] generate_quizzes final raw_output: {repr(raw_output)[:100]}")
         return self._safe_parse_json(raw_output, {"quizzes": []})
 
     def generate_labs(self, topic, language, module_title, module_number):
@@ -167,6 +170,11 @@ class AIOrchestrator:
             theory_data = future_theory.result()
             quizzes_data = future_quizzes.result()
             labs_data = future_labs.result()
+            
+            print(f"[DEBUG] theory_data keys: {theory_data.keys()}")
+            print(f"[DEBUG] quizzes_data keys: {quizzes_data.keys()}")
+            print(f"[DEBUG] quizzes_data content: {quizzes_data}")
+            print(f"[DEBUG] labs_data keys: {labs_data.keys()}")
 
         # Merge results into a unified module dict
         combined = {}

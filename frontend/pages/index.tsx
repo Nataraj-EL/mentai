@@ -67,8 +67,8 @@ interface CourseMetadata {
 
 interface CourseData {
   id: number;
-  course_title: string;
-  course_content: string;
+  title: string;
+  content: string;
   topic: string;
   modules: Module[];
   metadata?: CourseMetadata;
@@ -111,22 +111,13 @@ export default function Home() {
   // Language is now derived from topic by backend
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [generatingModuleId, setGeneratingModuleId] = useState<number | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string>("");
   const [currentModule, setCurrentModule] = useState<number>(0);
   const [activeLabIndex, setActiveLabIndex] = useState<number>(0);
 
-  // Reset active lab and trigger loading if necessary when module changes
+  // Reset active lab when module changes
   useEffect(() => {
     setActiveLabIndex(0);
-
-    // Check if we need to load detailed content for this module
-    if (course && course.modules[currentModule]) {
-      const activeModule = course.modules[currentModule];
-      if (!activeModule.theory && !activeModule.content) {
-        fetchModuleContent(activeModule.id, currentModule);
-      }
-    }
   }, [currentModule]);
 
   // Handle URL parameters for returning from quiz
@@ -175,7 +166,8 @@ export default function Home() {
         "Generating module structure...",
         "Creating learning content...",
         "Building interactive elements...",
-        "Finalizing course materials..."
+        "Finalizing course materials...",
+        "Almost there..."
       ];
 
       let messageIndex = 0;
@@ -183,17 +175,33 @@ export default function Home() {
         if (messageIndex < messages.length) {
           setLoadingMessage(messages[messageIndex]);
           messageIndex++;
-        } else {
-          clearInterval(messageInterval);
         }
-      }, 1000);
+      }, 5000); // 5 sec interval for 30s wait
 
-      const res = await API.post(`/generate-course/`, { topic });
-      setCourse(res.data);
+      let payload = null;
+      let isGenerating = true;
+      let pollCount = 0;
+
+      while (isGenerating && pollCount < 40) { // Max 2 mins
+        const res = await API.post(`/generate-course/`, { topic });
+        if (res.status === 202) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          pollCount++;
+        } else if (res.status === 200 || res.status === 201) {
+          payload = res.data;
+          isGenerating = false;
+        } else {
+          throw new Error("Unexpected response from server");
+        }
+      }
+
+      if (!payload) throw new Error("Generation timed out");
+
+      setCourse(payload);
       setCurrentModule(0);
 
       // Store course data in localStorage for quiz navigation
-      localStorage.setItem('courseData', JSON.stringify(res.data));
+      localStorage.setItem('courseData', JSON.stringify(payload));
 
       clearInterval(messageInterval);
     } catch (error: unknown) {
@@ -220,32 +228,7 @@ export default function Home() {
     }
   };
 
-  const fetchModuleContent = async (moduleId: number, moduleIndex: number) => {
-    if (generatingModuleId === moduleId) return; // Prevent double fetch
 
-    setGeneratingModuleId(moduleId);
-    try {
-      const res = await API.get(`/modules/${moduleId}/content`);
-      const updatedModule = res.data;
-
-      setCourse(prev => {
-        if (!prev) return prev;
-        const newModules = [...prev.modules];
-        // Ensure we preserve the name to match the frontend state
-        updatedModule.name = newModules[moduleIndex].name;
-        newModules[moduleIndex] = updatedModule;
-
-        const newCourse = { ...prev, modules: newModules };
-        localStorage.setItem('courseData', JSON.stringify(newCourse));
-        return newCourse;
-      });
-    } catch (err: unknown) {
-      console.error("Failed to generate/fetch module content:", err);
-      // We could set an error state here specifically for the module, but for now we just handle it silently
-    } finally {
-      setGeneratingModuleId(null);
-    }
-  };
 
   // Cleanup localStorage when component unmounts
   useEffect(() => {
@@ -380,8 +363,8 @@ export default function Home() {
                 <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-800 mb-2">{course.course_title}</h2>
-                      <p className="text-gray-700 leading-relaxed">{course.course_content}</p>
+                      <h2 className="text-3xl font-bold text-gray-800 mb-2">{course.title}</h2>
+                      <p className="text-gray-700 leading-relaxed">{course.content}</p>
                     </div>
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     <PDFExporter courseData={course as any} type="course" />
@@ -455,159 +438,149 @@ export default function Home() {
 
 
                     {/* 1. Theory Section (New) */}
-                    {generatingModuleId === course.modules[currentModule].id ? (
-                      <div className="mb-8 p-12 flex flex-col items-center justify-center bg-white/50 rounded-lg border border-blue-100">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                        <p className="text-gray-600 font-medium">Generating AI educational content...</p>
-                        <p className="text-sm text-gray-400 mt-2">This module is being written dynamically.</p>
-                      </div>
-                    ) : (
-                      <>
-                        {course.modules[currentModule].theory && (
-                          <div className="mb-8">
-                            <div className="bg-white/90 rounded-lg p-6 border-l-4 border-blue-500 shadow-sm">
-                              <h4 className="flex items-center text-xl font-bold text-gray-800 mb-4">
-                                <span className="mr-2">📖</span> Module Theory
-                              </h4>
-                              <SimpleMarkdown content={course.modules[currentModule].theory!} />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 2. Interactive Labs (Stable, Single Compiler) */}
-                        {(course.modules[currentModule].preloaded_code || (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs.length > 0)) && (
-                          <div className="mb-8">
-                            <h4 className="flex items-center text-xl font-bold text-gray-800 mb-4">
-                              <span className="mr-2">💻</span> Interactive Labs
-                            </h4>
-
-                            {/* Lab Tabs */}
-                            {course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs.length > 0 && (
-                              <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
-                                {course.modules[currentModule].mini_labs.map((lab: MiniLab, idx: number) => (
-                                  <button
-                                    key={idx}
-                                    onClick={() => setActiveLabIndex(idx)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeLabIndex === idx
-                                      ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
-                                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                                      }`}
-                                  >
-                                    {lab.title || `Lab ${idx + 1}`}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="bg-gray-900 rounded-lg overflow-hidden shadow-xl border border-gray-700">
-                              {/* Lab Metadata Header */}
-                              <div className="bg-gray-800 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
-                                <span className="text-gray-300 text-sm font-mono">
-                                  {(course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex])
-                                    ? course.modules[currentModule].mini_labs[activeLabIndex].title
-                                    : `Lab: ${course.modules[currentModule].name}`}
-                                </span>
-                                <span className="text-xs text-gray-500"> judge0 Execution Environment</span>
-                              </div>
-
-                              <CodeEditor
-                                code={
-                                  (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex] && course.modules[currentModule].mini_labs[activeLabIndex].preloaded_code)
-                                    ? course.modules[currentModule].mini_labs[activeLabIndex].preloaded_code
-                                    : (course.modules[currentModule].preloaded_code || "")
-                                }
-                                language={course.metadata?.language || 'python'}
-                                title=""
-                                explanation={
-                                  (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex])
-                                    ? course.modules[currentModule].mini_labs[activeLabIndex].description
-                                    : "Experiment with this pre-loaded code."
-                                }
-                                topic={course.topic} // Pass topic prop
-                                readOnly={course.metadata ? !course.metadata.execution_enabled : false}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 3. Mini Project (New) */}
-                        {course.modules[currentModule].mini_project && (
-                          <div className="mb-8">
-                            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 border border-purple-200 shadow-sm">
-                              <h4 className="flex items-center text-xl font-bold text-purple-900 mb-4">
-                                <span className="mr-2">🚀</span> Mini Project: {course.modules[currentModule].mini_project.title}
-                              </h4>
-                              <p className="text-gray-700 mb-4">{course.modules[currentModule].mini_project.description}</p>
-
-                              <div className="bg-white/80 rounded-lg p-4">
-                                <h6 className="font-semibold text-purple-800 mb-2">Project Tasks:</h6>
-                                <ul className="space-y-2">
-                                  {course.modules[currentModule].mini_project.tasks.map((task: string, i: number) => (
-                                    <li key={i} className="flex items-start">
-                                      <span className="inline-block w-5 h-5 rounded-full bg-purple-200 text-purple-700 flex items-center justify-center text-xs font-bold mr-3">{i + 1}</span>
-                                      <span className="text-gray-700">{task}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 4. Quiz Section CTA */}
-                        <div className="mb-8">
-                          <motion.div
-                            whileHover={{ scale: 1.01 }}
-                            className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200 shadow-sm flex flex-col md:flex-row items-center justify-between"
-                          >
-                            <div className="mb-4 md:mb-0">
-                              <h4 className="flex items-center text-xl font-bold text-green-800 mb-2">
-                                <span className="mr-2">📝</span> Knowledge Check
-                              </h4>
-                              <p className="text-green-700">Test your understanding with a {course.modules[currentModule].quizzes?.length || 10}-question quiz.</p>
-                            </div>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => router.push(`/quiz/${course.modules[currentModule].id}`)}
-                              className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-lg transition-colors flex items-center"
-                            >
-                              Take Quiz <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                            </motion.button>
-                          </motion.div>
+                    {course.modules[currentModule].theory && (
+                      <div className="mb-8">
+                        <div className="bg-white/90 rounded-lg p-6 border-l-4 border-blue-500 shadow-sm">
+                          <h4 className="flex items-center text-xl font-bold text-gray-800 mb-4">
+                            <span className="mr-2">📖</span> Module Theory
+                          </h4>
+                          <SimpleMarkdown content={course.modules[currentModule].theory!} />
                         </div>
+                      </div>
+                    )}
 
+                    {/* 2. Interactive Labs (Stable, Single Compiler) */}
+                    {(course.modules[currentModule].preloaded_code || (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs.length > 0)) && (
+                      <div className="mb-8">
+                        <h4 className="flex items-center text-xl font-bold text-gray-800 mb-4">
+                          <span className="mr-2">💻</span> Interactive Labs
+                        </h4>
 
-                        {/* 5. Practice Problems */}
-                        {course.modules[currentModule].practice_problems && course.modules[currentModule].practice_problems.length > 0 && (
-                          <div className="mb-6">
-                            <h4 className="flex items-center text-xl font-semibold text-gray-800 mb-4">
-                              <span className="mr-2">⚡</span> Practice Problems
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {course.modules[currentModule].practice_problems.map((problem: PracticeProblem, index: number) => (
-                                <motion.a
-                                  key={index}
-                                  href={problem.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  whileHover={{ scale: 1.02 }}
-                                  className="block p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-blue-300 transition-all group"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-gray-700 group-hover:text-blue-600">{problem.name}</span>
-                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                    </svg>
-                                  </div>
-                                </motion.a>
-                              ))}
-                            </div>
+                        {/* Lab Tabs */}
+                        {course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs.length > 0 && (
+                          <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+                            {course.modules[currentModule].mini_labs.map((lab: MiniLab, idx: number) => (
+                              <button
+                                key={idx}
+                                onClick={() => setActiveLabIndex(idx)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeLabIndex === idx
+                                  ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                  }`}
+                              >
+                                {lab.title || `Lab ${idx + 1}`}
+                              </button>
+                            ))}
                           </div>
                         )}
 
-                      </>
+                        <div className="bg-gray-900 rounded-lg overflow-hidden shadow-xl border border-gray-700">
+                          {/* Lab Metadata Header */}
+                          <div className="bg-gray-800 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
+                            <span className="text-gray-300 text-sm font-mono">
+                              {(course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex])
+                                ? course.modules[currentModule].mini_labs[activeLabIndex].title
+                                : `Lab: ${course.modules[currentModule].name}`}
+                            </span>
+                            <span className="text-xs text-gray-500"> judge0 Execution Environment</span>
+                          </div>
+
+                          <CodeEditor
+                            code={
+                              (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex] && course.modules[currentModule].mini_labs[activeLabIndex].preloaded_code)
+                                ? course.modules[currentModule].mini_labs[activeLabIndex].preloaded_code
+                                : (course.modules[currentModule].preloaded_code || "")
+                            }
+                            language={course.metadata?.language || 'python'}
+                            title=""
+                            explanation={
+                              (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs[activeLabIndex])
+                                ? course.modules[currentModule].mini_labs[activeLabIndex].description
+                                : "Experiment with this pre-loaded code."
+                            }
+                            topic={course.topic} // Pass topic prop
+                            readOnly={course.metadata ? !course.metadata.execution_enabled : false}
+                          />
+                        </div>
+                      </div>
                     )}
+
+                    {/* 3. Mini Project (New) */}
+                    {course.modules[currentModule].mini_project && (
+                      <div className="mb-8">
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 border border-purple-200 shadow-sm">
+                          <h4 className="flex items-center text-xl font-bold text-purple-900 mb-4">
+                            <span className="mr-2">🚀</span> Mini Project: {course.modules[currentModule].mini_project.title}
+                          </h4>
+                          <p className="text-gray-700 mb-4">{course.modules[currentModule].mini_project.description}</p>
+
+                          <div className="bg-white/80 rounded-lg p-4">
+                            <h6 className="font-semibold text-purple-800 mb-2">Project Tasks:</h6>
+                            <ul className="space-y-2">
+                              {course.modules[currentModule].mini_project.tasks.map((task: string, i: number) => (
+                                <li key={i} className="flex items-start">
+                                  <span className="inline-block w-5 h-5 rounded-full bg-purple-200 text-purple-700 flex items-center justify-center text-xs font-bold mr-3">{i + 1}</span>
+                                  <span className="text-gray-700">{task}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. Quiz Section CTA */}
+                    <div className="mb-8">
+                      <motion.div
+                        whileHover={{ scale: 1.01 }}
+                        className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200 shadow-sm flex flex-col md:flex-row items-center justify-between"
+                      >
+                        <div className="mb-4 md:mb-0">
+                          <h4 className="flex items-center text-xl font-bold text-green-800 mb-2">
+                            <span className="mr-2">📝</span> Knowledge Check
+                          </h4>
+                          <p className="text-green-700">Test your understanding with a {course.modules[currentModule].quizzes?.length || 10}-question quiz.</p>
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => router.push(`/quiz/${course.modules[currentModule].id}`)}
+                          className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-lg transition-colors flex items-center"
+                        >
+                          Take Quiz <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </motion.button>
+                      </motion.div>
+                    </div>
+
+
+                    {/* 5. Practice Problems */}
+                    {course.modules[currentModule].practice_problems && course.modules[currentModule].practice_problems.length > 0 && (
+                      <div className="mb-6">
+                        <h4 className="flex items-center text-xl font-semibold text-gray-800 mb-4">
+                          <span className="mr-2">⚡</span> Practice Problems
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {course.modules[currentModule].practice_problems.map((problem: PracticeProblem, index: number) => (
+                            <motion.a
+                              key={index}
+                              href={problem.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              whileHover={{ scale: 1.02 }}
+                              className="block p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-blue-300 transition-all group"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-700 group-hover:text-blue-600">{problem.name}</span>
+                                <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </div>
+                            </motion.a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                   </motion.div>
                 )}
               </motion.div>

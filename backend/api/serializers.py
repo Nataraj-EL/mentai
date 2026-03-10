@@ -14,10 +14,12 @@ class QuizSerializer(serializers.ModelSerializer):
 class ModuleSerializer(serializers.ModelSerializer):
     videos = VideoSerializer(many=True, read_only=True)
     quizzes = QuizSerializer(many=True, read_only=True)
+    theory = serializers.CharField(source='content', read_only=True)
+    mini_labs = serializers.JSONField(source='case_scenarios', read_only=True)
     
     class Meta:
         model = Module
-        fields = ['id', 'name', 'description', 'content', 'difficulty', 'order', 'code_examples', 'case_scenarios', 'videos', 'quizzes']
+        fields = ['id', 'name', 'description', 'content', 'difficulty', 'order', 'code_examples', 'case_scenarios', 'videos', 'quizzes', 'theory', 'mini_labs']
 
 class CourseSerializer(serializers.ModelSerializer):
     modules = ModuleSerializer(many=True, read_only=True)

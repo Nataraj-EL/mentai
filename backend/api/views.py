@@ -36,52 +36,93 @@ class GenerateCourseView(APIView):
     def post(self, request):
         try:
             # Validate request data
-            topic = request.data.get("topic")
-            if not topic:
+            raw_topic = request.data.get("topic")
+            if not raw_topic or not isinstance(raw_topic, str) or len(raw_topic.strip()) == 0:
                 return Response({
                     "error": "Topic is required", 
-                    "details": "Please provide a 'topic' field in the request body",
+                    "details": "Please provide a valid 'topic' field",
                     "example": {"topic": "Java Programming"}
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            if not isinstance(topic, str) or len(topic.strip()) == 0:
-                return Response({
-                    "error": "Invalid topic format",
-                    "details": "Topic must be a non-empty string",
-                    "example": {"topic": "Java Programming"}
-                }, status=status.HTTP_400_BAD_REQUEST)
+            # 1. Fast normalized DB check
+            normalized_topic = raw_topic.strip().lower()
 
-            
-            # 1. Input Intelligence & Standardization
-            # Classify first to get canonical data and correct typos (e.g. "pythin" -> "python")
-            classification = TopicClassifier.classify(topic)
-            
-            # Use the intelligent Display Title for the course (e.g. "Python Programming")
-            display_title = classification.get("display_title", topic.title())
+            existing_course = Course.objects.filter(topic__iexact=normalized_topic).first()
+            if existing_course:
+                if existing_course.status == "generating":
+                    return Response({
+                        "message": "Course is currently being generated. Please wait.",
+                        "status": "generating"
+                    }, status=status.HTTP_202_ACCEPTED)
+                elif existing_course.status == "generated":
+                    print(f"Course {normalized_topic} found in DB. Returning existing structure.")
+                    
+                    # Need to classify to get metadata consistently
+                    classification = TopicClassifier.classify(raw_topic)
+                    
+                    serializer = CourseSerializer(existing_course)
+                    response_data = serializer.data
+                    response_data["metadata"] = {
+                        "language": classification["language"],
+                        "execution_enabled": classification["execution_enabled"],
+                        "topic_type": classification["type"]
+                    }
+                    return Response(response_data, status=status.HTTP_200_OK)
+
+            # 2. Input Intelligence & Standardization for new topic
+            classification = TopicClassifier.classify(raw_topic)
+            display_title = classification.get("display_title", raw_topic.title())
             canonical_slug = classification["language"]
             execution_enabled = classification["execution_enabled"]
             topic_type = classification["type"]
             
-            # Standardize title for consistent caching and UI
-            topic = display_title
-            
-            print(f"Generating for: {topic} (Lang: {canonical_slug}, Exec: {execution_enabled})")
-            
-            # Check Database first
-            existing_course = Course.objects.filter(topic__iexact=topic).first()
+            # Double check with classifier's display_title just in case it maps to an existing course
+            classifier_normalized = display_title.strip().lower()
+            existing_course = Course.objects.filter(topic__iexact=classifier_normalized).first()
             if existing_course:
-                print(f"Course {topic} found in DB. Returning existing structure.")
-                serializer = CourseSerializer(existing_course)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                if existing_course.status == "generating":
+                    return Response({"message": "Course is currently being generated. Please wait.", "status": "generating"}, status=status.HTTP_202_ACCEPTED)
+                elif existing_course.status == "generated":
+                    serializer = CourseSerializer(existing_course)
+                    response_data = serializer.data
+                    response_data["metadata"] = {
+                        "language": canonical_slug,
+                        "execution_enabled": execution_enabled,
+                        "topic_type": topic_type
+                    }
+                    return Response(response_data, status=status.HTTP_200_OK)
 
-            # Generate Course Structure (Fast Mode)
-            # Pass canonical_language explicitly so we don't re-detect
-            course_data = self.create_course_structure_fast(
-                topic, 
+            print(f"Generating new course for: {display_title} (Lang: {canonical_slug}, Exec: {execution_enabled})")
+
+            # 3. Lock course record to prevent concurrent generations
+            course_obj, created = Course.objects.get_or_create(
+                topic=classifier_normalized,
+                defaults={
+                    "title": display_title,
+                    "status": "generating"
+                }
+            )
+            
+            if not created and course_obj.status == "generating":
+                 return Response({"message": "Course is currently being generated. Please wait.", "status": "generating"}, status=status.HTTP_202_ACCEPTED)
+
+            course_obj.status = "generating"
+            course_obj.save()
+
+            # 4. Generate Course Structure and Full Content
+            course_data = self.create_course_full(
+                course_obj,
+                display_title,
                 language=canonical_slug, 
                 execution_enabled=execution_enabled,
                 topic_type=topic_type
             )
+            
+            course_data["metadata"] = {
+                "language": canonical_slug,
+                "execution_enabled": execution_enabled,
+                "topic_type": topic_type
+            }
             
             return Response(course_data, status=status.HTTP_201_CREATED)
 
@@ -99,40 +140,84 @@ class GenerateCourseView(APIView):
                 "details": "An unexpected error occurred while generating the course"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def create_course_structure_fast(self, topic, language=None, execution_enabled=True, topic_type="EXECUTABLE"):
-        """Dynamic course generation using Hybrid Multi-LLM Orchestrator"""
+    def create_course_full(self, course_obj, topic, language=None, execution_enabled=True, topic_type="EXECUTABLE"):
+        """Dynamic course generation using Hybrid Multi-LLM Orchestrator and Full Content Pre-population"""
         if not language:
             language = self.detect_programming_language(topic)
             
         try:
             from .ai_orchestrator import AIOrchestrator
+            import concurrent.futures
             orchestrator = AIOrchestrator()
             
-            print(f"Attempting valid Multi-LLM AI generation for: {topic}")
+            print(f"Attempting valid Multi-LLM AI structure generation for: {topic}")
             course_outline = orchestrator.generate_course_structure(topic, language)
             
             if course_outline and "modules" in course_outline and len(course_outline["modules"]) > 0:
-                # Save Course
-                course_title = course_outline.get("course_title", f"Course on {topic}")
-                course_content_desc = course_outline.get("course_description", f"A comprehensive course covering {topic}.")
+                # Update Course details
+                course_obj.title = course_outline.get("course_title", f"Course on {topic}")
+                course_obj.content = course_outline.get("course_description", f"A comprehensive course covering {topic}.")
+                course_obj.save()
                 
-                course_obj = Course.objects.create(
-                    title=course_title,
-                    content=course_content_desc,
-                    topic=topic
-                )
-                
-                # Save Modules structure
+                # Save Modules structure immediately
+                modules_to_create = []
                 for mod in course_outline["modules"]:
                     mod_num = mod.get("module_number", 0)
-                    Module.objects.create(
+                    module = Module.objects.create(
                         course=course_obj,
                         name=f"Module {mod_num}: {mod['title']}",
                         description=mod.get("description", ""),
                         difficulty=mod.get("difficulty", "beginner").lower(),
                         order=mod_num,
-                        content="" # Will be generated on demand
+                        content=""
                     )
+                    modules_to_create.append({"obj": module, "title": mod["title"], "num": mod_num})
+
+                # Parallel Generate Full Content
+                def generate_module_content(mod_data):
+                    mod_obj = mod_data["obj"]
+                    # Generate theory, labs, quizzes
+                    module_content = orchestrator.generate_complete_module(
+                        topic=topic,
+                        language=language,
+                        module_title=mod_data["title"],
+                        module_number=mod_data["num"]
+                    )
+                    return {"mod_obj": mod_obj, "content": module_content}
+
+                print(f"Starting parallel content generation for {len(modules_to_create)} modules...")
+                results = []
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    futures = [executor.submit(generate_module_content, mod) for mod in modules_to_create]
+                    # Wait and add 120s timeout
+                    for future in concurrent.futures.as_completed(futures, timeout=120):
+                        results.append(future.result()) # Will raise any exception caught inside
+
+                # Safely execute all database writes synchronously to avoid "database is locked" in SQLite
+                print("Parallel generation complete. Saving to database...")
+                for res in results:
+                    mod_obj = res["mod_obj"]
+                    module_content = res["content"]
+                    
+                    # Update Module
+                    mod_obj.content = module_content.get("theory", "")
+                    mod_obj.case_scenarios = module_content.get("mini_labs", [])
+                    mod_obj.save()
+                    
+                    # Create Quizzes
+                    quizzes = module_content.get("quizzes", [])
+                    for q in quizzes:
+                        Quiz.objects.create(
+                            module=mod_obj,
+                            question=q.get("question", "Invalid Question"),
+                            options=q.get("options", []),
+                            correct_answer=q.get("answer", ""),
+                            explanation=q.get("explanation", "")
+                        )
+
+                # Mark as Generated
+                course_obj.status = "generated"
+                course_obj.save()
 
                 serializer = CourseSerializer(course_obj)
                 return serializer.data
@@ -141,7 +226,9 @@ class GenerateCourseView(APIView):
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            print(f"[Backend Error] Exception in create_course_structure_fast: {tb}")
+            print(f"[Backend Error] Exception in create_course_full: {tb}")
+            course_obj.status = "failed"
+            course_obj.save()
             raise ValueError(f"AI Content Generation Failed: {e}")
 
     def generate_unique_module_content(self, language, module_title, module_number, difficulty, module_index, topic="", topic_type="EXECUTABLE"):
@@ -2286,7 +2373,7 @@ class ModuleContentView(APIView):
                 )
 
                 if module_content:
-                    module.content = module_content.get('content', '') # Theory content mapped from AI
+                    module.content = module_content.get('theory', '') # Theory content mapped from AI
                     
                     # Store Code Labs
                     if module_content.get('mini_labs'):

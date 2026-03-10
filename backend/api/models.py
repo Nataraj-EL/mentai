@@ -4,11 +4,17 @@ from django.contrib.auth.models import User
 # Create your models here.
 
 class Course(models.Model):
+    STATUS_CHOICES = [
+        ('generating', 'Generating'),
+        ('generated', 'Generated'),
+        ('failed', 'Failed'),
+    ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=255, null=True, blank=True)
     content = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     topic = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='generated')
 
     def __str__(self):
         return f"{self.title} ({self.user.username if self.user else 'Anonymous'})"
