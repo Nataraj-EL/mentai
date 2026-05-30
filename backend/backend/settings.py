@@ -112,12 +112,23 @@ RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 
 # ✅ CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # Allowed for all origins as per requirements
+CORS_ALLOW_CREDENTIALS = True
 
 # Allow all required HTTP methods
 CORS_ALLOW_METHODS = [
     "GET",
     "POST",
     "OPTIONS",
+]
+
+# Allow custom headers
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'content-type',
+    'accept',
+    'origin',
+    'authorization',
+    'x-requested-with',
 ]
 
 # Security Settings

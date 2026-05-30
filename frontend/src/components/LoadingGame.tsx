@@ -414,6 +414,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
   const [score, setScore] = useState(0);
   const [showExplanation, setShowExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [gameFinished, setGameFinished] = useState(false);
 
   // Derive and filter questions based on the topic matching registry keys
   useEffect(() => {
@@ -437,6 +438,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
     setSelectedOption(null);
     setShowExplanation(false);
     setScore(0);
+    setGameFinished(false);
   }, [topic]);
 
   const handleOptionClick = (option: string) => {
@@ -459,7 +461,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
         if (onComplete) {
           onComplete();
         } else {
-          setCurrentIndex(0);
+          setGameFinished(true);
         }
       } else {
         setCurrentIndex(prev => prev + 1);
@@ -468,6 +470,28 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
   };
 
   if (currentQuestions.length === 0) return null;
+
+  if (gameFinished) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-xl bg-white border border-gray-200 rounded-xl p-8 shadow-md text-center text-[#111827]"
+      >
+        <div className="mb-6 flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-[#06B6D4]/30 border-t-[#06B6D4] rounded-full animate-spin mb-6" />
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Finalizing Course Creation</h3>
+          <p className="text-sm text-gray-500 max-w-sm leading-relaxed mb-3">
+            Bug Hunter speed-run complete. Score: <strong className="text-[#06B6D4]">{score}</strong> / {currentQuestions.length}.
+          </p>
+          <p className="text-sm text-gray-600 max-w-md leading-relaxed">
+            Please wait while we put together your custom university-grade syllabus and coding modules. Your course will load automatically.
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
 
   const currentQuestion = currentQuestions[currentIndex];
 
@@ -483,7 +507,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
       <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-3">
         <div>
           <span className="bg-[#06B6D4]/10 text-[#06B6D4] font-mono text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider">
-            👾 Bug Hunter Mini-Game
+            Bug Hunter Mini-Game
           </span>
         </div>
         <div className="text-right">
@@ -494,7 +518,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
       </div>
 
       <h3 className="text-lg font-bold mb-3 text-[#111827] flex items-center">
-        <span className="mr-2">🔎</span> Challenge {currentIndex + 1}: Find and Fix the Bug!
+        Challenge {currentIndex + 1}: Find and Fix the Bug!
       </h3>
 
       {/* Code Snippet Sandbox Preview */}
@@ -553,7 +577,7 @@ export const LoadingGame: React.FC<LoadingGameProps> = ({ topic, onComplete }) =
             }`}
           >
             <div className="flex items-center mb-1.5 font-bold text-sm">
-              <span className="text-base mr-1.5">{isCorrect ? "🎉 Correct!" : "⚠️ Let's learn!"}</span>
+              <span className="text-base mr-1.5">{isCorrect ? "Correct!" : "Let's learn!"}</span>
             </div>
             <p className="font-medium mb-1.5">{currentQuestion.explanation}</p>
             <p className="text-[10px] text-gray-400 italic border-t border-gray-200/50 pt-1 mt-1 font-mono">

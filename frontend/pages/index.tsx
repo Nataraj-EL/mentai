@@ -376,7 +376,7 @@ export default function Home() {
                     <p className="text-white text-xl font-bold mb-2">Generating your course</p>
                     <p className="text-gray-400 text-sm font-medium">{loadingMessage}</p>
                   </div>
-                  <LoadingGame topic={topic} onComplete={() => setLoading(false)} />
+                  <LoadingGame topic={topic} />
                 </div>
               </motion.div>
             )}
@@ -472,7 +472,7 @@ export default function Home() {
                     {(course.modules[currentModule].preloaded_code || (course.modules[currentModule].mini_labs && course.modules[currentModule].mini_labs.length > 0)) && (
                       <div className="mb-8">
                         <h4 className="flex items-center text-xl font-bold text-[#111827] mb-4">
-                          <span className="mr-2">💻</span> Interactive Labs
+                          Interactive Labs
                         </h4>
  
                         {/* Lab Tabs */}
@@ -529,7 +529,7 @@ export default function Home() {
                       <div className="mb-8">
                         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                           <h4 className="flex items-center text-xl font-bold text-[#111827] mb-4">
-                            <span className="mr-2">🚀</span> Mini Project: {course.modules[currentModule].mini_project.title}
+                            Mini Project: {course.modules[currentModule].mini_project.title}
                           </h4>
                           <p className="text-gray-700 mb-4">{course.modules[currentModule].mini_project.description}</p>
  
@@ -576,7 +576,7 @@ export default function Home() {
                     {course.modules[currentModule].practice_problems && course.modules[currentModule].practice_problems.length > 0 && (
                       <div className="mb-6">
                         <h4 className="flex items-center text-xl font-semibold text-[#111827] mb-4">
-                          <span className="mr-2">⚡</span> Practice Problems
+                          Practice Problems
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {course.modules[currentModule].practice_problems.map((problem: PracticeProblem, index: number) => (
