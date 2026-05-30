@@ -1,5 +1,7 @@
 import logging
 
+from django.db import close_old_connections
+
 logger = logging.getLogger('api')
 
 class RequestLoggingMiddleware:
@@ -7,6 +9,7 @@ class RequestLoggingMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        close_old_connections()
         logger.info(f"Incoming request: {request.method} {request.path}")
         response = self.get_response(request)
         if response.status_code >= 400:

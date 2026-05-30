@@ -208,6 +208,15 @@ export default function Home() {
           pollCount++;
         } else if (res.status === 200 || res.status === 201) {
           payload = res.data;
+          const firstMod = payload?.modules?.[0];
+          console.log('[MentAI] generate-course payload received', {
+            title: payload?.title,
+            moduleCount: payload?.modules?.length ?? 0,
+            module0_theoryLen: (firstMod?.theory || firstMod?.content || '').length,
+            module0_miniLabs: firstMod?.mini_labs?.length ?? 0,
+            module0_quizzes: firstMod?.quizzes?.length ?? 0,
+            module0_practiceProblems: firstMod?.practice_problems?.length ?? 0,
+          });
           isGenerating = false;
         } else {
           throw new Error("Unexpected response from server");
@@ -451,10 +460,10 @@ export default function Home() {
                     </div>
 
                     {/* 1. Theory Section (New) */}
-                    {course.modules[currentModule].theory && (
+                    {(course.modules[currentModule].theory || course.modules[currentModule].content) && (
                       <div className="mb-8">
                         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm border-l-4 border-[#06B6D4]">
-                          <SimpleMarkdown content={course.modules[currentModule].theory!} />
+                          <SimpleMarkdown content={(course.modules[currentModule].theory || course.modules[currentModule].content)!} />
                         </div>
                       </div>
                     )}
@@ -527,7 +536,7 @@ export default function Home() {
                           <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                             <h6 className="font-semibold text-[#111827] mb-2">Project Tasks:</h6>
                             <ul className="space-y-2">
-                              {course.modules[currentModule].mini_project.tasks.map((task: string, i: number) => (
+                              {(course.modules[currentModule].mini_project?.tasks ?? []).map((task: string, i: number) => (
                                 <li key={i} className="flex items-start">
                                   <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-bold mr-3">{i + 1}</span>
                                   <span className="text-gray-700">{task}</span>

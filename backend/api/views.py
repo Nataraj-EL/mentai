@@ -22,6 +22,94 @@ from django.utils.decorators import method_decorator
 
 import threading
 from django.core.cache import cache
+from django.db import connection
+from django.db.utils import OperationalError
+
+
+def _get_course_by_topic(topic: str):
+    """Lookup course; reconnect once if Postgres dropped an idle SSL connection."""
+    try:
+        return Course.objects.filter(topic__iexact=topic).first()
+    except OperationalError:
+        connection.close()
+        return Course.objects.filter(topic__iexact=topic).first()
+
+
+MIN_MODULE_CONTENT_LEN = 100
+
+
+def _module_title_from_name(name: str) -> str:
+    if ": " in name:
+        return name.split(": ", 1)[1]
+    return name
+
+
+def _course_modules_lack_content(course) -> bool:
+    modules = list(course.modules.all())
+    if not modules:
+        return True
+    return any(
+        not mod.content or len(mod.content.strip()) < MIN_MODULE_CONTENT_LEN
+        for mod in modules
+    )
+
+
+def _normalize_quiz_list(quizzes):
+    if isinstance(quizzes, dict):
+        if "questions" in quizzes:
+            return quizzes["questions"]
+        if "quizzes" in quizzes:
+            return quizzes["quizzes"]
+        return []
+    return quizzes if isinstance(quizzes, list) else []
+
+
+def _save_module_quizzes(mod_obj, quizzes):
+    quizzes = _normalize_quiz_list(quizzes)
+    if not quizzes:
+        return
+    mod_obj.quizzes.all().delete()
+    for q in quizzes:
+        if isinstance(q, dict) and "question" in q:
+            correct_ans = q.get("answer") or q.get("correct_answer") or ""
+            Quiz.objects.create(
+                module=mod_obj,
+                question=q.get("question", "Invalid Question"),
+                options=q.get("options", []),
+                correct_answer=correct_ans,
+                explanation=q.get("explanation", ""),
+            )
+
+
+def _hydrate_course_modules(course, language, topic_type, topic_display):
+    """Backfill module theory/labs/quizzes when DB has outline-only rows (common on Render cache hits)."""
+    print(f"Hydrating empty module content for course id={course.id} topic={course.topic!r}")
+    for mod in course.modules.all():
+        if mod.content and len(mod.content.strip()) >= MIN_MODULE_CONTENT_LEN:
+            continue
+        title = _module_title_from_name(mod.name)
+        mod_num = mod.order or 1
+        mod.content = get_module_theory(language, title, mod_num)
+        mod.case_scenarios = get_mini_labs(language, title, mod_num, topic_type=topic_type)
+        mod.code_examples = get_prebuilt_code_examples(language, title, mod_num)
+        mod.save()
+        if not mod.quizzes.exists():
+            _save_module_quizzes(mod, get_module_quiz(language, topic_type, title, mod_num))
+
+
+def _build_course_response(course, metadata):
+    if _course_modules_lack_content(course):
+        _hydrate_course_modules(
+            course,
+            metadata["language"],
+            metadata["topic_type"],
+            course.title or course.topic,
+        )
+        course.status = "generated"
+        course.save(update_fields=["status"])
+    response_data = CourseSerializer(course).data
+    response_data["metadata"] = metadata
+    return response_data
 
 
 # Module-level fallback cache for dev/local
@@ -47,30 +135,36 @@ class GenerateCourseView(APIView):
             # 1. Fast normalized DB check
             normalized_topic = raw_topic.strip().lower()
 
-            existing_course = Course.objects.filter(topic__iexact=normalized_topic).first()
+            existing_course = _get_course_by_topic(normalized_topic)
             if existing_course:
                 if request.data.get("force"):
                     print(f"Force generation requested. Deleting existing course: {existing_course.id}")
                     existing_course.delete()
                     existing_course = None
                 elif existing_course.status == "generating":
+                    classification = TopicClassifier.classify(raw_topic)
+                    metadata = {
+                        "language": classification["language"],
+                        "execution_enabled": classification["execution_enabled"],
+                        "topic_type": classification["type"],
+                    }
+                    if existing_course.modules.exists() and _course_modules_lack_content(existing_course):
+                        print(f"Recovering stalled generation for course id={existing_course.id}")
+                        response_data = _build_course_response(existing_course, metadata)
+                        return Response(response_data, status=status.HTTP_200_OK)
                     return Response({
                         "message": "Course is currently being generated. Please wait.",
                         "status": "generating"
                     }, status=status.HTTP_202_ACCEPTED)
                 elif existing_course.status == "generated":
                     print(f"Course {normalized_topic} found in DB. Returning existing structure.")
-                    
-                    # Need to classify to get metadata consistently
                     classification = TopicClassifier.classify(raw_topic)
-                    
-                    serializer = CourseSerializer(existing_course)
-                    response_data = serializer.data
-                    response_data["metadata"] = {
+                    metadata = {
                         "language": classification["language"],
                         "execution_enabled": classification["execution_enabled"],
-                        "topic_type": classification["type"]
+                        "topic_type": classification["type"],
                     }
+                    response_data = _build_course_response(existing_course, metadata)
                     return Response(response_data, status=status.HTTP_200_OK)
 
             # 2. Input Intelligence & Standardization for new topic
@@ -82,22 +176,30 @@ class GenerateCourseView(APIView):
             
             # Double check with classifier's display_title just in case it maps to an existing course
             classifier_normalized = display_title.strip().lower()
-            existing_course = Course.objects.filter(topic__iexact=classifier_normalized).first()
+            existing_course = _get_course_by_topic(classifier_normalized)
             if existing_course:
                 if request.data.get("force"):
                     print(f"Force generation requested. Deleting existing course: {existing_course.id}")
                     existing_course.delete()
                     existing_course = None
                 elif existing_course.status == "generating":
-                    return Response({"message": "Course is currently being generated. Please wait.", "status": "generating"}, status=status.HTTP_202_ACCEPTED)
-                elif existing_course.status == "generated":
-                    serializer = CourseSerializer(existing_course)
-                    response_data = serializer.data
-                    response_data["metadata"] = {
+                    metadata = {
                         "language": canonical_slug,
                         "execution_enabled": execution_enabled,
-                        "topic_type": topic_type
+                        "topic_type": topic_type,
                     }
+                    if existing_course.modules.exists() and _course_modules_lack_content(existing_course):
+                        print(f"Recovering stalled generation for course id={existing_course.id}")
+                        response_data = _build_course_response(existing_course, metadata)
+                        return Response(response_data, status=status.HTTP_200_OK)
+                    return Response({"message": "Course is currently being generated. Please wait.", "status": "generating"}, status=status.HTTP_202_ACCEPTED)
+                elif existing_course.status == "generated":
+                    metadata = {
+                        "language": canonical_slug,
+                        "execution_enabled": execution_enabled,
+                        "topic_type": topic_type,
+                    }
+                    response_data = _build_course_response(existing_course, metadata)
                     return Response(response_data, status=status.HTTP_200_OK)
 
             print(f"Generating new course for: {display_title} (Lang: {canonical_slug}, Exec: {execution_enabled})")

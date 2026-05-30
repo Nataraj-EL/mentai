@@ -2,6 +2,39 @@ import axios from 'axios';
 
 export const API = axios.create();
 
+API.interceptors.response.use(
+  (response) => {
+    const url = response.config.url || '';
+    if (typeof window !== 'undefined' && url.includes('generate-course')) {
+      const data = response.data as {
+        title?: string;
+        modules?: Array<{
+          theory?: string;
+          content?: string;
+          mini_labs?: unknown[];
+          quizzes?: unknown[];
+          practice_problems?: unknown[];
+        }>;
+      };
+      const first = data?.modules?.[0];
+      const theoryLen = (first?.theory || first?.content || '').length;
+      console.log('[MentAI API] generate-course response', {
+        status: response.status,
+        baseURL: response.config.baseURL,
+        title: data?.title,
+        moduleCount: data?.modules?.length ?? 0,
+        module0_theoryLen: theoryLen,
+        module0_miniLabs: first?.mini_labs?.length ?? 0,
+        module0_quizzes: first?.quizzes?.length ?? 0,
+        module0_practiceProblems: first?.practice_problems?.length ?? 0,
+        raw: response.data,
+      });
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+
 API.interceptors.request.use((config) => {
   const isDev = process.env.NODE_ENV === 'development';
   if (typeof window !== 'undefined') {
