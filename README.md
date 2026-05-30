@@ -396,7 +396,3 @@ MentAI includes automated verification scripts to validate database configuratio
 - **Standardized OAuth Integrations**: Transitioning progress APIs to secure session JWT tokens inside REST views.
 
 ---
-
-## License
-
-This project is licensed under the MIT License.
