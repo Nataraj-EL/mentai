@@ -72,6 +72,20 @@ class TopicClassifier:
         if cleaned in TopicClassifier.REGISTRY:
             return TopicClassifier._format_result(cleaned)
             
+        # 2.5 Token-based Word Match (e.g., 'java programming' -> 'java', 'modern javascript' -> 'javascript')
+        # Split cleaned topic into individual words, keeping special chars like +, # intact
+        tokens = re.sub(r'[^\w\+\#]', ' ', cleaned).split()
+        
+        # Check canonical keys first
+        for key in TopicClassifier.REGISTRY.keys():
+            if key in tokens:
+                return TopicClassifier._format_result(key)
+                
+        # Check aliases second
+        for alias, key in TopicClassifier.ALIASES.items():
+            if alias in tokens:
+                return TopicClassifier._format_result(key)
+            
         # 3. Fuzzy Match
         # Get close matches with cutoff=0.6 (allows for 'pythin', 'javascrip', etc)
         matches = difflib.get_close_matches(cleaned, TopicClassifier.REGISTRY.keys(), n=1, cutoff=0.6)

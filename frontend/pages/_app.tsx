@@ -3,7 +3,6 @@ import Head from "next/head";
 import { SessionProvider } from "next-auth/react";
 import dynamic from 'next/dynamic';
 import Footer from '../src/components/Footer';
-import ChatInterface from '../src/components/ChatInterface';
 import "../styles/globals.css";
 
 const ThreeJSBackground = dynamic(() => import('../src/components/ThreeJSBackground'), { ssr: false });
@@ -21,7 +20,6 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
             <Component {...pageProps} />
           </main>
           <Footer />
-          <ChatInterface />
         </div>
       </div>
     </SessionProvider>

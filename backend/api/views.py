@@ -49,7 +49,11 @@ class GenerateCourseView(APIView):
 
             existing_course = Course.objects.filter(topic__iexact=normalized_topic).first()
             if existing_course:
-                if existing_course.status == "generating":
+                if request.data.get("force"):
+                    print(f"Force generation requested. Deleting existing course: {existing_course.id}")
+                    existing_course.delete()
+                    existing_course = None
+                elif existing_course.status == "generating":
                     return Response({
                         "message": "Course is currently being generated. Please wait.",
                         "status": "generating"
@@ -80,7 +84,11 @@ class GenerateCourseView(APIView):
             classifier_normalized = display_title.strip().lower()
             existing_course = Course.objects.filter(topic__iexact=classifier_normalized).first()
             if existing_course:
-                if existing_course.status == "generating":
+                if request.data.get("force"):
+                    print(f"Force generation requested. Deleting existing course: {existing_course.id}")
+                    existing_course.delete()
+                    existing_course = None
+                elif existing_course.status == "generating":
                     return Response({"message": "Course is currently being generated. Please wait.", "status": "generating"}, status=status.HTTP_202_ACCEPTED)
                 elif existing_course.status == "generated":
                     serializer = CourseSerializer(existing_course)
@@ -150,9 +158,47 @@ class GenerateCourseView(APIView):
             import concurrent.futures
             orchestrator = AIOrchestrator()
             
-            print(f"Attempting valid Multi-LLM AI structure generation for: {topic}")
-            course_outline = orchestrator.generate_course_structure(topic, language)
-            
+            course_outline = None
+            try:
+                print(f"Attempting valid Multi-LLM AI structure generation for: {topic}")
+                course_outline = orchestrator.generate_course_structure(topic, language)
+            except Exception as ex_struct:
+                print(f"[Offline Fallback] AI structure generation failed: {ex_struct}")
+
+            # If AI structure generation failed, was empty, or had 0 modules, use offline fallback curriculum
+            if not course_outline or "modules" not in course_outline or len(course_outline["modules"]) == 0:
+                print(f"[Offline Fallback] Generating prebuilt curriculum outline for {topic} ({language})")
+                titles = get_module_titles(language)
+                if not titles:
+                    # If we don't have a syllabus for this language, try matching a standard language or create generic titles
+                    titles = [
+                        "Introduction and Development Environment",
+                        "Language Fundamentals: Variables and Data Types",
+                        "Control Flow: Conditionals and Loops",
+                        "Functions and Scope",
+                        "Data Structures and Collections",
+                        "Object-Oriented Programming and Core Concepts",
+                        "Advanced Language Features",
+                        "Exception Handling and File I/O",
+                        "Testing and Debugging",
+                        "Projects and Best Practices"
+                    ]
+                
+                course_outline = {
+                    "course_title": f"Complete {topic} Programming",
+                    "course_description": f"A comprehensive course covering {topic} from fundamentals to advanced applications with hands-on labs and interactive quizzes.",
+                    "modules": [
+                        {
+                            "module_number": idx + 1,
+                            "title": title,
+                            "description": f"Master the concepts of {title.lower()} with detailed theory, exercises, and assessments.",
+                            "learning_objectives": [f"Understand {title.lower()}", f"Apply {title.lower()} in real-world scenarios"],
+                            "difficulty": "Beginner" if idx < 3 else "Intermediate" if idx < 7 else "Advanced"
+                        }
+                        for idx, title in enumerate(titles)
+                    ]
+                }
+
             if course_outline and "modules" in course_outline and len(course_outline["modules"]) > 0:
                 # Update Course details
                 course_obj.title = course_outline.get("course_title", f"Course on {topic}")
@@ -176,22 +222,72 @@ class GenerateCourseView(APIView):
                 # Parallel Generate Full Content
                 def generate_module_content(mod_data):
                     mod_obj = mod_data["obj"]
-                    # Generate theory, labs, quizzes
-                    module_content = orchestrator.generate_complete_module(
-                        topic=topic,
-                        language=language,
-                        module_title=mod_data["title"],
-                        module_number=mod_data["num"]
-                    )
-                    return {"mod_obj": mod_obj, "content": module_content}
+                    print(f"START generating module: {mod_data['title']}")
+                    try:
+                        # Generate theory, labs, quizzes
+                        module_content = orchestrator.generate_complete_module(
+                            topic=topic,
+                            language=language,
+                            module_title=mod_data["title"],
+                            module_number=mod_data["num"]
+                        )
+                        
+                        # Validate generated content. If it lacks theory, quizzes, or labs, use fallback
+                        if not module_content or not module_content.get("theory") or len(module_content.get("theory")) < 100:
+                            print(f"[Offline Fallback] AI theory too short or missing for module: {mod_data['title']}")
+                            raise ValueError("Invalid theory content")
+                            
+                        # Field-by-field robust fallback for other parts if AI returned empty collections due to rate limits
+                        quizzes = module_content.get("quizzes", [])
+                        quizzes_list = []
+                        if isinstance(quizzes, dict):
+                            if "questions" in quizzes:
+                                quizzes_list = quizzes["questions"]
+                            elif "quizzes" in quizzes:
+                                quizzes_list = quizzes["quizzes"]
+                        elif isinstance(quizzes, list):
+                            quizzes_list = quizzes
+                            
+                        if not quizzes_list:
+                            print(f"[Offline Fallback] AI quizzes empty/missing for module: {mod_data['title']}. Using prebuilt fallback quizzes.")
+                            module_content["quizzes"] = get_module_quiz(language, topic_type, mod_data["title"], mod_data["num"])
+                            
+                        if not module_content.get("mini_labs"):
+                            print(f"[Offline Fallback] AI mini_labs empty/missing for module: {mod_data['title']}. Using prebuilt fallback mini labs.")
+                            module_content["mini_labs"] = get_mini_labs(language, mod_data["title"], mod_data["num"], topic_type=topic_type)
+                            
+                        if not module_content.get("code_examples"):
+                            print(f"[Offline Fallback] AI code_examples empty/missing for module: {mod_data['title']}. Using prebuilt fallback code examples.")
+                            module_content["code_examples"] = get_prebuilt_code_examples(language, mod_data["title"], mod_data["num"])
+                            
+                        print(f"Generated content keys: {module_content.keys()}")
+                        print(f"Theory length: {len(module_content.get('theory', ''))}")
+                        print(f"Quiz count: {len(module_content.get('quizzes', []))}")
+                        return {"mod_obj": mod_obj, "content": module_content}
+                    except Exception as e:
+                        print(f"Module generation failed or was empty: {e}")
+                        print(f"[Offline Fallback] Populating offline fallback for module: {mod_data['title']}")
+                        
+                        # Generate fallback content from our prebuilt course_content library
+                        fallback_theory = get_module_theory(language, mod_data["title"], mod_data["num"])
+                        fallback_labs = get_mini_labs(language, mod_data["title"], mod_data["num"], topic_type=topic_type)
+                        fallback_quiz = get_module_quiz(language, topic_type, mod_data["title"], mod_data["num"])
+                        fallback_code_examples = get_prebuilt_code_examples(language, mod_data["title"], mod_data["num"])
+                        
+                        module_content = {
+                            "theory": fallback_theory,
+                            "mini_labs": fallback_labs,
+                            "code_examples": fallback_code_examples,
+                            "quizzes": fallback_quiz
+                        }
+                        
+                        print(f"[Offline Fallback] Completed fallback population. Quiz count: {len(fallback_quiz)}")
+                        return {"mod_obj": mod_obj, "content": module_content}
 
-                print(f"Starting parallel content generation for {len(modules_to_create)} modules...")
+                print(f"Starting paced content generation for {len(modules_to_create)} modules...")
                 results = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    futures = [executor.submit(generate_module_content, mod) for mod in modules_to_create]
-                    # Wait and add 120s timeout
-                    for future in concurrent.futures.as_completed(futures, timeout=120):
-                        results.append(future.result()) # Will raise any exception caught inside
+                for mod in modules_to_create:
+                    results.append(generate_module_content(mod))
 
                 # Safely execute all database writes synchronously to avoid "database is locked" in SQLite
                 print("Parallel generation complete. Saving to database...")
@@ -202,18 +298,30 @@ class GenerateCourseView(APIView):
                     # Update Module
                     mod_obj.content = module_content.get("theory", "")
                     mod_obj.case_scenarios = module_content.get("mini_labs", [])
+                    mod_obj.code_examples = module_content.get("code_examples", [])
                     mod_obj.save()
                     
                     # Create Quizzes
                     quizzes = module_content.get("quizzes", [])
-                    for q in quizzes:
-                        Quiz.objects.create(
-                            module=mod_obj,
-                            question=q.get("question", "Invalid Question"),
-                            options=q.get("options", []),
-                            correct_answer=q.get("answer", ""),
-                            explanation=q.get("explanation", "")
-                        )
+                    if isinstance(quizzes, dict):
+                        if "questions" in quizzes:
+                            quizzes = quizzes["questions"]
+                        elif "quizzes" in quizzes:
+                            quizzes = quizzes["quizzes"]
+                        else:
+                            quizzes = []
+                    
+                    if isinstance(quizzes, list):
+                        for q in quizzes:
+                            if isinstance(q, dict) and "question" in q:
+                                correct_ans = q.get("answer") or q.get("correct_answer") or ""
+                                Quiz.objects.create(
+                                    module=mod_obj,
+                                    question=q.get("question", "Invalid Question"),
+                                    options=q.get("options", []),
+                                    correct_answer=correct_ans,
+                                    explanation=q.get("explanation", "")
+                                )
 
                 # Mark as Generated
                 course_obj.status = "generated"
@@ -2174,6 +2282,8 @@ class QuizView(APIView):
                     'id': quiz.id,
                     'question': quiz.question,
                     'options': quiz.options,
+                    'correct_answer': quiz.correct_answer,
+                    'explanation': quiz.explanation,
                     'question_type': quiz.question_type
                 })
             
@@ -2385,18 +2495,25 @@ class ModuleContentView(APIView):
                     
                     # Store Quizzes
                     quizzes = module_content.get('quizzes', [])
-                    if isinstance(quizzes, dict) and 'quizzes' in quizzes:
-                        quizzes = quizzes['quizzes']
-                        
-                    for q in quizzes:
-                        if isinstance(q, dict) and 'question' in q:
-                            Quiz.objects.create(
-                                module=module,
-                                question=q.get('question', ''),
-                                options=q.get('options', []),
-                                correct_answer=q.get('answer', ''),
-                                explanation=q.get('explanation', '')
-                            )
+                    if isinstance(quizzes, dict):
+                        if 'questions' in quizzes:
+                            quizzes = quizzes['questions']
+                        elif 'quizzes' in quizzes:
+                            quizzes = quizzes['quizzes']
+                        else:
+                            quizzes = []
+                            
+                    if isinstance(quizzes, list):
+                        for q in quizzes:
+                            if isinstance(q, dict) and 'question' in q:
+                                correct_ans = q.get('answer') or q.get('correct_answer') or ''
+                                Quiz.objects.create(
+                                    module=module,
+                                    question=q.get('question', ''),
+                                    options=q.get('options', []),
+                                    correct_answer=correct_ans,
+                                    explanation=q.get('explanation', '')
+                                )
                 
                 serializer = ModuleSerializer(module)
                 return Response(serializer.data, status=status.HTTP_200_OK)

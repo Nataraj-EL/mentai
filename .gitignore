@@ -21,4 +21,9 @@ test_output.txt
 .DS_Store
 Thumbs.db
 
+# Databases
+*.sqlite3
+
+# Virtual Environments
+venv*/
 

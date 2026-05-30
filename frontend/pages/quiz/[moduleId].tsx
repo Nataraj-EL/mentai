@@ -41,6 +41,23 @@ export default function QuizPage() {
   const { moduleId } = router.query;
   const { data: session } = useSession();
 
+  // MANDATORY DEBUGGING LOGS
+  console.log("REACT RENDER QUIZ PAGE: moduleId =", moduleId);
+  if (typeof window !== "undefined") {
+    const localSaved = localStorage.getItem("courseData");
+    console.log("localStorage courseData exists:", localSaved !== null);
+    if (localSaved) {
+      try {
+        const parsed = JSON.parse(localSaved);
+        console.log("localStorage Course modules length:", parsed?.modules?.length);
+        const activeM = parsed?.modules?.find((m: Record<string, unknown>) => m.id === parseInt(moduleId as string));
+        console.log("Matched active module in localStorage:", activeM ? { id: activeM.id, name: activeM.name, quiz_keys: Object.keys(activeM.quizzes || activeM.quiz || {}) } : "NOT FOUND");
+      } catch (e) {
+        console.error("JSON parse error in localSaved:", e);
+      }
+    }
+  }
+
   const [quizData, setQuizData] = useState<QuizResponse | null>(null);
   const [answers, setAnswers] = useState<{ [key: number]: string }>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
@@ -85,8 +102,13 @@ export default function QuizPage() {
   useEffect(() => {
     if (moduleId && router.isReady) {
       // Inline the call to avoid react-hooks/exhaustive-deps if it's too complex to wrap
-      const loadQuiz = () => {
+      const loadQuiz = async () => {
         try {
+          let questions: Question[] = [];
+          let moduleName = "Module Quiz";
+          let moduleDescription = "";
+          let loaded = false;
+
           const courseDataStr = localStorage.getItem('courseData');
           if (courseDataStr) {
             const courseData = JSON.parse(courseDataStr);
@@ -94,7 +116,6 @@ export default function QuizPage() {
             const activeM = courseData.modules.find((m: Record<string, unknown>) => m.id === moduleIdNum);
             if (activeM) {
               const quizDataSrc = activeM.quizzes || activeM.quiz;
-              let questions: Question[] = [];
               if (Array.isArray(quizDataSrc)) {
                 questions = quizDataSrc.map((q: Record<string, unknown>, idx: number) => ({
                   id: q.id ? Number(q.id) : idx + 1,
@@ -112,22 +133,48 @@ export default function QuizPage() {
                   question_type: (q.question_type || "mcq") as string
                 }));
               }
-              setQuizData({
-                questions,
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                module_name: (activeM as any).name || "Module Quiz",
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                module_description: (activeM as any).description || ""
-              });
-              setAnswers({});
-              setResults(null);
-              setLocalQuizSource(questions);
-              setLoading(false);
+              moduleName = activeM.name || "Module Quiz";
+              moduleDescription = activeM.description || "";
+              if (questions.length > 0) {
+                loaded = true;
+              }
             }
+          }
+
+          if (!loaded) {
+            console.log(`Quiz not found in localStorage or empty. Fetching from backend for moduleId=${moduleId}...`);
+            const res = await API.get(`/quiz/${moduleId}/`);
+            if (res.data && Array.isArray(res.data.questions)) {
+              questions = res.data.questions.map((q: Record<string, unknown>, idx: number) => ({
+                id: q.id ? Number(q.id) : idx + 1,
+                question: q.question as string,
+                options: q.options as string[],
+                answer: (q.answer || q.correct_answer || q.correct_option) as string,
+                question_type: (q.question_type || "mcq") as string
+              }));
+              moduleName = res.data.module_name || "Module Quiz";
+              moduleDescription = res.data.module_description || "";
+              loaded = true;
+            }
+          }
+
+          if (loaded) {
+            setQuizData({
+              questions,
+              module_name: moduleName,
+              module_description: moduleDescription
+            });
+            setAnswers({});
+            setResults(null);
+            setLocalQuizSource(questions);
+            setLoading(false);
+          } else {
+            setError("No quiz questions available for this module.");
+            setLoading(false);
           }
         } catch (err: unknown) {
           console.error("Quiz load error:", err);
-          setError("Failed to load quiz.");
+          setError("Failed to load quiz from server.");
           setLoading(false);
         }
       };
@@ -151,8 +198,8 @@ export default function QuizPage() {
     let correctCount = 0;
     const quizResults: QuizResult[] = [];
 
-    localQuizSource.forEach((q, idx) => {
-      const qId = idx + 1; // Assuming 1-based index matches
+    localQuizSource.forEach((q) => {
+      const qId = q.id;
       const userAnswer = answers[qId];
       const actualCorrectAnswer = q.correct_answer || q.answer;
       const isCorrect = userAnswer === actualCorrectAnswer;
@@ -265,14 +312,14 @@ export default function QuizPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-visible">
       <div className="relative z-10">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8 max-w-5xl mx-auto md:pl-72"
+            className="text-center mb-8 max-w-5xl mx-auto"
           >
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
               Quiz: {quizData.module_name}
@@ -286,7 +333,7 @@ export default function QuizPage() {
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => router.push(getBackToTutorialUrl())}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-6 py-3 bg-[#06B6D4] text-[#111827] rounded-lg hover:bg-[#06b6d4]/90 transition-all font-semibold"
               >
                 Back to Tutorial
               </button>
@@ -294,35 +341,34 @@ export default function QuizPage() {
           </motion.div>
 
           {!submitted ? (
-            <div className="flex max-w-5xl mx-auto md:pl-72 gap-8">
+            <div className="flex flex-col md:flex-row max-w-5xl mx-auto gap-8 items-start">
               {/* Sidebar Navigation */}
-              <aside className="hidden md:flex flex-col fixed left-8 top-1/2 -translate-y-1/2 h-auto w-64 bg-gradient-to-br from-white/80 to-blue-100/80 shadow-2xl rounded-3xl p-8 border border-blue-200 z-40 transition-all duration-300 backdrop-blur-lg">
-                <h3 className="text-2xl font-extrabold font-sans text-gray-900 mb-10 text-center tracking-wide drop-shadow-lg">Question Navigation</h3>
-                <div className="grid grid-cols-2 gap-6 mb-12">
+              <aside className="hidden md:flex flex-col sticky top-12 w-64 bg-white shadow-sm rounded-xl p-6 border border-gray-200 shrink-0 z-40 transition-all duration-300">
+                <h3 className="text-lg font-bold text-gray-900 mb-6 text-center tracking-tight">Question Navigation</h3>
+                <div className="grid grid-cols-2 gap-4 mb-8">
                   {quizData.questions.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => scrollToQuestion(index)}
-                      className={`w-14 h-14 flex items-center justify-center rounded-full text-lg font-bold shadow-md border-2 focus:outline-none transition-all duration-200 backdrop-blur-lg ${currentQuestion === index
-                        ? 'bg-gradient-to-tr from-blue-600 to-blue-400 text-white border-blue-400 shadow-xl ring-4 ring-blue-200 scale-110'
+                      className={`w-10 h-10 flex items-center justify-center rounded-lg text-sm font-semibold border focus:outline-none transition-all duration-200 ${currentQuestion === index
+                        ? 'bg-[#06B6D4] text-[#111827] border-[#06B6D4] shadow-sm scale-105'
                         : getQuestionStatus(index) === 'answered'
-                          ? 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200'
-                          : 'bg-white/80 text-gray-600 border-gray-200 hover:bg-blue-100/70'
+                          ? 'bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/20 hover:bg-[#06B6D4]/20'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                         }`}
-                      style={{ boxShadow: currentQuestion === index ? '0 4px 24px 0 rgba(59,130,246,0.25)' : undefined }}
                     >
                       Q{index + 1}
                     </button>
                   ))}
                 </div>
-                <div className="mt-auto pt-8 border-t border-blue-200">
-                  <div className="flex items-center justify-between text-base text-gray-700 mb-3 font-medium">
+                <div className="mt-auto pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-sm text-gray-700 mb-2 font-medium">
                     <span>Progress:</span>
                     <span>{Object.keys(answers).length} / {quizData.questions.length}</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <motion.div
-                      className="h-4 rounded-full bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 shadow"
+                      className="h-2 rounded-full bg-[#06B6D4]"
                       initial={{ width: 0 }}
                       animate={{ width: `${(Object.keys(answers).length / quizData.questions.length) * 100}%` }}
                       transition={{ duration: 0.5 }}
@@ -332,29 +378,29 @@ export default function QuizPage() {
               </aside>
 
               {/* Main Quiz Content */}
-              <div className="flex-1 min-w-0 md:ml-0 ml-0">
+              <div className="flex-1 min-w-0 w-full">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-6"
                 >
                   {/* Quiz Settings */}
-                  <div className="bg-white rounded-lg shadow-lg p-6">
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-800">
+                        <h3 className="text-lg font-semibold text-[#111827]">
                           Quiz Settings
                         </h3>
-                        <p className="text-gray-600">Configure your quiz experience</p>
+                        <p className="text-sm text-gray-600">Configure your quiz experience</p>
                       </div>
-                      <label className="flex items-center space-x-2">
+                      <label className="flex items-center space-x-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={showAnswers}
                           onChange={(e) => setShowAnswers(e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-gray-300 text-[#06B6D4] focus:ring-[#06B6D4]"
                         />
-                        <span className="text-gray-700">Show answers after submission</span>
+                        <span className="text-sm text-gray-700">Show answers after submission</span>
                       </label>
                     </div>
                   </div>
@@ -367,43 +413,59 @@ export default function QuizPage() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="bg-white rounded-lg shadow-lg p-6"
+                      className="bg-white rounded-xl border border-gray-200 shadow-sm p-6"
                     >
                       <div className="mb-4">
-                        <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full mb-3">
+                        <span className="inline-block bg-[#06B6D4]/10 text-[#06B6D4] text-xs font-semibold px-2.5 py-1 rounded-full mb-3">
                           Question {index + 1} of {quizData.questions.length}
                         </span>
-                        <p className="text-lg font-semibold text-gray-800">
+                        <p className="text-lg font-semibold text-[#111827]">
                           {question.question}
                         </p>
                       </div>
-
+ 
                       <div className="space-y-3">
-                        {question.options.map((option, optionIndex) => (
-                          <motion.div
-                            key={optionIndex}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleOptionSelect(question.id, option)}
-                            className={`cursor-pointer p-4 rounded-lg border-2 transition-all duration-200 ${answers[question.id] === option
-                              ? 'bg-blue-100 border-blue-500 shadow-md'
-                              : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                        {question.options.map((option, optionIndex) => {
+                          const isSelected = answers[question.id] === option;
+                          const letter = String.fromCharCode(65 + optionIndex);
+                          return (
+                            <motion.div
+                              key={optionIndex}
+                              whileHover={{ x: 4, scale: 1.005 }}
+                              whileTap={{ scale: 0.995 }}
+                              onClick={() => handleOptionSelect(question.id, option)}
+                              className={`cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-between ${
+                                isSelected
+                                  ? 'bg-[#06B6D4]/5 border-[#06B6D4] shadow-sm'
+                                  : 'bg-white border-gray-200 hover:bg-gray-50/50 hover:border-[#06b6d4]/30'
                               }`}
-                          >
-                            <div className="flex items-center">
-                              <div className={`w-6 h-6 rounded-full mr-4 border-2 flex items-center justify-center ${answers[question.id] === option
-                                ? 'bg-blue-600 border-blue-600'
-                                : 'border-gray-300'
+                            >
+                              <div className="flex items-center flex-grow">
+                                <div className={`w-7 h-7 rounded-full mr-4 border flex items-center justify-center font-bold text-xs transition-all duration-200 ${
+                                  isSelected
+                                    ? 'bg-[#06B6D4] border-[#06B6D4] text-[#111827] shadow-sm'
+                                    : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
                                 }`}>
-                                {answers[question.id] === option && (
-                                  <div className="w-3 h-3 bg-white rounded-full"></div>
-                                )}
+                                  {letter}
+                                </div>
+                                <span className={`font-medium text-sm md:text-base leading-relaxed ${
+                                  isSelected ? 'text-gray-950 font-semibold' : 'text-gray-700'
+                                }`}>
+                                  {option}
+                                </span>
                               </div>
-                              <span className={`font-medium ${answers[question.id] === option ? 'text-blue-800' : 'text-gray-700'
-                                }`}>{option}</span>
-                            </div>
-                          </motion.div>
-                        ))}
+                              {isSelected && (
+                                <motion.span 
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  className="text-[#06B6D4] font-bold text-xs shrink-0 bg-[#06B6D4]/10 px-2.5 py-1 rounded-full uppercase tracking-wider"
+                                >
+                                  Selected
+                                </motion.span>
+                              )}
+                            </motion.div>
+                          );
+                        })}
                       </div>
                     </motion.div>
                   ))}
@@ -414,13 +476,15 @@ export default function QuizPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center"
                   >
-                    <button
+                    <motion.button
+                      whileHover={Object.keys(answers).length === quizData.questions.length ? { scale: 1.03 } : {}}
+                      whileTap={Object.keys(answers).length === quizData.questions.length ? { scale: 0.97 } : {}}
                       onClick={handleSubmitQuiz}
                       disabled={Object.keys(answers).length < quizData.questions.length}
-                      className="px-8 py-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg font-semibold"
+                      className="px-8 py-4 bg-[#06B6D4] text-[#111827] rounded-lg hover:bg-[#06b6d4]/90 disabled:bg-gray-200 disabled:cursor-not-allowed transition-all text-lg font-bold shadow-md"
                     >
                       Submit Quiz ({Object.keys(answers).length}/{quizData.questions.length})
-                    </button>
+                    </motion.button>
                   </motion.div>
                 </motion.div>
               </div>
@@ -432,23 +496,23 @@ export default function QuizPage() {
               className="max-w-4xl mx-auto"
             >
               {/* Results Summary */}
-              <div className="bg-white rounded-lg shadow-lg p-8 mb-6 text-center">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 mb-6 text-center">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className="text-6xl mb-4"
+                  className="text-6xl mb-4 text-[#06B6D4]"
                 >
                   ✓
                 </motion.div>
-                <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                  Quiz Complete!
+                <h2 className="text-3xl font-bold text-[#111827] mb-4">
+                  Quiz Complete
                 </h2>
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 mb-6">
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-6">
                   <p className="text-2xl text-gray-800 mb-2">
                     You scored <span className={`font-bold ${getScoreColor(results!.score_percentage)}`}>
                       {results!.correct_answers}
-                    </span> out of <span className="font-bold text-blue-600">
+                    </span> out of <span className="font-bold text-gray-900">
                       {results!.total_questions}
                     </span>
                   </p>
@@ -467,13 +531,13 @@ export default function QuizPage() {
                       setResults(null);
                       setCurrentQuestion(0);
                     }}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="px-6 py-3 bg-white border border-gray-200 text-[#111827] rounded-lg hover:bg-gray-50 transition-all font-medium shadow-sm"
                   >
                     Take Quiz Again
                   </button>
                   <button
                     onClick={() => router.push(getBackToTutorialUrl())}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-6 py-3 bg-[#06B6D4] text-[#111827] rounded-lg hover:bg-[#06b6d4]/90 transition-all font-semibold"
                   >
                     Back to Tutorial
                   </button>
@@ -490,55 +554,55 @@ export default function QuizPage() {
                 <div className="space-y-6">
                   <h3 className="text-2xl font-bold text-gray-800 text-center mb-6">
                     Detailed Results
-                  </h3>
-
-                  {results!.results.map((result, index) => (
+                  </h3>                  {results!.results.map((result, index) => (
                     <motion.div
                       key={result.question_id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className={`bg-white rounded-lg shadow-lg p-6 border-l-4 ${result.is_correct ? 'border-green-500' : 'border-red-500'
-                        }`}
+                      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-6 border-l-4 ${
+                        result.is_correct ? 'border-green-500' : 'border-red-500'
+                      }`}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center">
-                          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium mr-3 ${result.is_correct
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                            }`}>
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold mr-3 ${
+                            result.is_correct
+                              ? 'bg-green-50 text-green-700 border border-green-100'
+                              : 'bg-red-50 text-red-700 border border-red-100'
+                          }`}>
                             {result.is_correct ? 'Correct' : 'Incorrect'}
                           </span>
-                          <span className="text-gray-500">Question {index + 1}</span>
+                          <span className="text-sm text-gray-500 font-medium">Question {index + 1}</span>
                         </div>
                       </div>
-
-                      <p className="text-lg font-semibold text-gray-800 mb-4">
+ 
+                      <p className="text-lg font-semibold text-[#111827] mb-4">
                         {result.question}
                       </p>
-
+ 
                       <div className="space-y-2">
                         <div className="flex items-center">
-                          <span className="font-medium text-gray-700 w-24">Your Answer:</span>
-                          <span className={`font-medium ${result.is_correct ? 'text-green-600' : 'text-red-600'
+                          <span className="font-medium text-gray-700 w-28 text-sm">Your Answer:</span>
+                          <span className={`font-semibold text-sm ${result.is_correct ? 'text-green-600' : 'text-red-600'
                             }`}>
                             {result.user_answer || 'Not answered'}
                           </span>
                         </div>
-
+ 
                         {!result.is_correct && (
                           <div className="flex items-center">
-                            <span className="font-medium text-gray-700 w-24">Correct Answer:</span>
-                            <span className="font-medium text-green-600">
+                            <span className="font-medium text-gray-700 w-28 text-sm">Correct Answer:</span>
+                            <span className="font-semibold text-green-600 text-sm">
                               {result.correct_answer}
                             </span>
                           </div>
                         )}
-
+ 
                         {result.explanation && (
-                          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                            <p className="text-sm font-medium text-blue-800 mb-2">Explanation:</p>
-                            <p className="text-blue-700">{result.explanation}</p>
+                          <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200/60">
+                            <p className="text-sm font-semibold text-gray-900 mb-1">Explanation:</p>
+                            <p className="text-sm text-gray-600 leading-relaxed">{result.explanation}</p>
                           </div>
                         )}
                       </div>

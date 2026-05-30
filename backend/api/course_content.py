@@ -200,7 +200,8 @@ def get_module_objectives(language, module_title, module_number):
 
 from .theory_content import (
     python_theory, java_theory, js_theory, react_theory, cpp_theory,
-    html_theory, css_theory, c_theory, go_theory, ts_theory, solidity_theory
+    html_theory, css_theory, c_theory, go_theory, ts_theory, solidity_theory,
+    sql_theory, mongodb_theory
 )
 
 def get_module_theory(language, module_title, module_number):
@@ -234,6 +235,10 @@ def get_module_theory(language, module_title, module_number):
         content = ts_theory.get(module_number)
     elif lang_key in ["solidity", "sol"]:
         content = solidity_theory.get(module_number)
+    elif lang_key in ["sql", "sqlite", "postgresql", "mysql"]:
+        content = sql_theory.get(module_number)
+    elif lang_key in ["mongodb", "mongo", "nosql"]:
+        content = mongodb_theory.get(module_number)
 
     # General Fallback (Minimal, No Fake "Advanced Analysis")
     if not content:
@@ -309,6 +314,24 @@ def get_prebuilt_code_examples(language, module_title, module_number):
             "code": "Timeline: Ancient Rome\n\n753 BC : Founding of Rome\n509 BC : Establishment of Republic\n44 BC  : Assassination of Julius Caesar\n27 BC  : Beginning of Empire (Augustus)\n476 AD : Fall of Western Roman Empire\n\nKey Concept: The transition from Republic to Empire marked a shift in power centralization.",
             "explanation": "Chronological timeline of key events.",
             "language": "markdown"
+        }]
+
+    # 5. SQL
+    elif lang_key in ["sql", "sqlite", "postgresql", "mysql"]:
+        return [{
+            "title": "SQL Relational Query Example",
+            "code": "-- SQL Query Example\nSELECT E.first_name, E.last_name, D.name AS dept_name\nFROM Employees E\nINNER JOIN Departments D ON E.dept_id = D.dept_id\nWHERE E.salary > 75000\nORDER BY E.salary DESC;",
+            "explanation": "Selects and joins employee records with their respective departments, filtering by salary.",
+            "language": "sql"
+        }]
+
+    # 6. MONGODB
+    elif lang_key in ["mongodb", "mongo", "nosql"]:
+        return [{
+            "title": "MongoDB Document Aggregation Example",
+            "code": "// MongoDB Aggregation Pipeline Example\ndb.orders.aggregate([\n  { $match: { status: \"completed\" } },\n  { $group: { _id: \"$customer_id\", total_spent: { $sum: \"$amount\" } } },\n  { $sort: { total_spent: -1 } }\n]);",
+            "explanation": "Filters completed orders, groups them by customer_id to calculate the total spent, and sorts in descending order.",
+            "language": "javascript"
         }]
 
     # DEFAULT FALLBACK
@@ -442,6 +465,8 @@ def get_prebuilt_code_snippet(topic, topic_type, module_index, lab_index=0, modu
     elif "go" in topic_lower or "golang" in topic_lower: language = "go"
     elif "typescript" in topic_lower or "ts" in topic_lower: language = "typescript"
     elif "c" == topic_lower or "c " in topic_lower or " c" in topic_lower: language = "c"
+    elif "sql" in topic_lower: language = "sql"
+    elif "mongodb" in topic_lower or "mongo" in topic_lower: language = "mongodb"
 
     # 7. GO (EXECUTABLE)
     if language == "go":
@@ -660,6 +685,24 @@ def get_prebuilt_code_snippet(topic, topic_type, module_index, lab_index=0, modu
 
         return f"#include <iostream>\nusing namespace std;\nint main() {{\n    cout << \"Running C++ Lab...\" << endl;\n    return 0;\n}}"
 
+    # 10. SQL (Non-Executable / Walkthrough Display)
+    elif language == "sql":
+        sql_snippets = {
+            1: ["-- SQL Lab 1: Relational Schema Creation\nCREATE TABLE Users (\n    id INT PRIMARY KEY,\n    name VARCHAR(50) NOT NULL,\n    email VARCHAR(100) UNIQUE\n);", "-- SQL Lab 2: Primary & Foreign Keys\nCREATE TABLE Orders (\n    order_id INT PRIMARY KEY,\n    user_id INT,\n    amount DECIMAL(10,2),\n    FOREIGN KEY (user_id) REFERENCES Users(id)\n);", "-- SQL Lab 3: Basic Constraints\nCREATE TABLE Products (\n    prod_id INT PRIMARY KEY,\n    name VARCHAR(100),\n    price DECIMAL(10,2) CHECK (price > 0)\n);"],
+            2: ["-- SQL DDL Altering structures\nALTER TABLE Users ADD phone VARCHAR(20);", "-- SQL DDL Dropping elements\nDROP TABLE TempUsers;", "-- SQL DDL Truncating tables\nTRUNCATE TABLE TempLogs;"]
+        }
+        mod_labs = sql_snippets.get(module_index + 1, [])
+        return mod_labs[lab_index] if lab_index < len(mod_labs) else f"-- SQL Module {module_index + 1} Practice Query\nSELECT * FROM Users WHERE id = 1;"
+
+    # 11. MONGODB (Non-Executable / Walkthrough Display)
+    elif language == "mongodb":
+        mongo_snippets = {
+            1: ["// MongoDB Lab 1: Insert documents\ndb.users.insertOne({\n  name: 'Alice',\n  email: 'alice@domain.com',\n  age: 25\n});", "// MongoDB Lab 2: Query filters ($gte, $in)\ndb.users.find({\n  age: { $gte: 21 },\n  status: { $in: ['active', 'pending'] }\n});", "// MongoDB Lab 3: Projections\ndb.users.find(\n  { age: { $gte: 21 } },\n  { name: 1, email: 1, _id: 0 }\n);"],
+            2: ["// MongoDB Lab 1: Field modifier ($set)\ndb.users.updateOne(\n  { email: 'alice@domain.com' },\n  { $set: { status: 'verified' } }\n);", "// MongoDB Lab 2: Increment numeric values ($inc)\ndb.users.updateMany(\n  { status: 'active' },\n  { $inc: { login_count: 1 } }\n);", "// MongoDB Lab 3: Push elements to arrays ($push)\ndb.users.updateOne(\n  { name: 'Alice' },\n  { $push: { roles: 'admin' } }\n);"]
+        }
+        mod_labs = mongo_snippets.get(module_index + 1, [])
+        return mod_labs[lab_index] if lab_index < len(mod_labs) else f"// MongoDB Module {module_index + 1} Query\ndb.users.find({{}});"
+
     # Default
     return f"// Code for {module_title}"
 
@@ -716,6 +759,18 @@ def get_mini_labs(language, module_title, module_number, topic_type="EXECUTABLE"
             0: {"title": "Memory & Pointers", "desc": "Direct memory manipulation.", "tasks": ["Declare a pointer", "Use address-of operator", "Dereference a pointer"]},
             1: {"title": "Structs & Unions", "desc": "Custom data types.", "tasks": ["Define a Struct", "Access struct members", "Use a Union"]},
             2: {"title": "System Calls", "desc": "Interact with the OS.", "tasks": ["Use malloc/free", "Read a file", "Handle errors"]}
+        }
+    elif "sql" in lang_lower:
+        lab_context = {
+            0: {"title": "Database Schema DDL", "desc": "Write CREATE and ALTER TABLE statements to define your relational schema.", "tasks": ["Create a Users table", "Define primary and foreign keys", "Add check constraints"]},
+            1: {"title": "Data Querying with JOINs", "desc": "Formulate SELECT queries combining data from multiple tables using INNER and LEFT JOINs.", "tasks": ["Perform an INNER JOIN", "Write a LEFT JOIN showing empty relations", "Apply aggregates on the joined datasets"]},
+            2: {"title": "Grouping and Filtering", "desc": "Use aggregates, GROUP BY, and HAVING to segment and filter records.", "tasks": ["Calculate total counts", "Filter groups using HAVING", "Write nested subqueries"]}
+        }
+    elif "mongodb" in lang_lower or "mongo" in lang_lower:
+        lab_context = {
+            0: {"title": "Document CRUD Operations", "desc": "Practice insertOne, insertMany, find, and update queries.", "tasks": ["Insert complex nested documents", "Filter using query operators like $gte", "Use array update operators like $push"]},
+            1: {"title": "Data Modeling & References", "desc": "Explore embedded documents vs referenced document collections.", "tasks": ["Design a denormalized embedded schema", "Model 1:Many relationships using ObjectId references", "Perform aggregate $lookup queries"]},
+            2: {"title": "Aggregation Pipelines", "desc": "Build aggregation stages to transform and compute stats on collection documents.", "tasks": ["Match and filter input documents", "Group by specific fields and sum values", "Unwind arrays and project fields"]}
         }
 
     for i in range(3):
@@ -960,6 +1015,56 @@ def get_module_quiz(language, topic_type, module_title, module_number):
         10: [{"question": "Errno?", "options": ["Error code", "Msg", "Func", "Flag"], "answer": "Error code", "explanation": "Global.", "difficulty": "hard", "type": "theory"}, {"question": "Argc?", "options": ["Count", "Values", "Env", "Name"], "answer": "Count", "explanation": "Args.", "difficulty": "medium", "type": "code"}, {"question": "Bitwise AND?", "options": ["&", "&&", "and", "+"], "answer": "&", "explanation": "Bits.", "difficulty": "medium", "type": "code"}]
     }
 
+    # 6. SQL QUIZZES
+    sql_quizzes = {
+        1: [
+            {"question": "What does SQL stand for?", "options": ["Structured Query Language", "Simple Query Language", "Sequential Query Language", "Standard Query Language"], "answer": "Structured Query Language", "explanation": "SQL is the industry standard structured querying language.", "difficulty": "easy", "type": "theory"},
+            {"question": "Which SQL sublanguage is used to define database structures like tables?", "options": ["DDL", "DML", "DQL", "DCL"], "answer": "DDL", "explanation": "Data Definition Language (DDL) includes CREATE, ALTER, and DROP.", "difficulty": "easy", "type": "theory"},
+            {"question": "Which of the following is a DML statement?", "options": ["INSERT", "CREATE", "DROP", "ALTER"], "answer": "INSERT", "explanation": "INSERT modifies data rows, making it part of Data Manipulation Language (DML).", "difficulty": "easy", "type": "code"},
+            {"question": "In the relational model, what represents an attribute?", "options": ["A column", "A row", "A table", "A primary key"], "answer": "A column", "explanation": "Columns represent attributes, while rows represent individual tuples.", "difficulty": "easy", "type": "theory"},
+            {"question": "Which key uniquely identifies a row in a table and cannot contain NULL values?", "options": ["Primary Key", "Foreign Key", "Unique Key", "Super Key"], "answer": "Primary Key", "explanation": "Primary keys strictly enforce uniqueness and non-nullability.", "difficulty": "easy", "type": "theory"},
+            {"question": "Which sublanguage controls transaction boundaries via COMMIT and ROLLBACK?", "options": ["TCL", "DML", "DDL", "DQL"], "answer": "TCL", "explanation": "Transaction Control Language (TCL) manages database changes.", "difficulty": "medium", "type": "theory"},
+            {"question": "What SQL statement is used to retrieve data from a database?", "options": ["SELECT", "GET", "FETCH", "OPEN"], "answer": "SELECT", "explanation": "SELECT is the primary DQL command used for projection and selection.", "difficulty": "easy", "type": "code"},
+            {"question": "What is the purpose of a Foreign Key constraint?", "options": ["Enforce referential integrity", "Ensure unique values", "Accelerate query performance", "Prevent NULL values"], "answer": "Enforce referential integrity", "explanation": "Foreign keys link rows across tables, building relational integrity.", "difficulty": "medium", "type": "theory"},
+            {"question": "Which command is used to delete an entire table schema along with all its data?", "options": ["DROP TABLE", "DELETE TABLE", "TRUNCATE TABLE", "REMOVE TABLE"], "answer": "DROP TABLE", "explanation": "DROP TABLE is a DDL command that deletes both structure and content.", "difficulty": "medium", "type": "code"},
+            {"question": "Which sublanguage manages access control permissions (GRANT, REVOKE)?", "options": ["DCL", "TCL", "DDL", "DQL"], "answer": "DCL", "explanation": "Data Control Language (DCL) handles permissions.", "difficulty": "medium", "type": "theory"}
+        ],
+        2: [{"question": "Which data type is best suited for high-precision currency values?", "options": ["DECIMAL", "FLOAT", "VARCHAR", "DOUBLE"], "answer": "DECIMAL", "explanation": "DECIMAL prevents floating-point rounding errors.", "difficulty": "easy"}, {"question": "What constraint ensures a column cannot have duplicate values across rows?", "options": ["UNIQUE", "NOT NULL", "CHECK", "FOREIGN KEY"], "answer": "UNIQUE", "explanation": "UNIQUE prevents duplicates while allowing NULLs.", "difficulty": "medium"}, {"question": "Which constraint checks values against a specific range?", "options": ["CHECK", "NOT NULL", "PRIMARY KEY", "FOREIGN KEY"], "answer": "CHECK", "explanation": "CHECK evaluates boolean expressions for each row.", "difficulty": "medium"}],
+        3: [{"question": "How do you filter records in SQL?", "options": ["WHERE", "GROUP BY", "SELECT", "ORDER BY"], "answer": "WHERE", "explanation": "WHERE filters raw rows.", "difficulty": "easy"}, {"question": "Which keyword sorts the result set?", "options": ["ORDER BY", "SORT BY", "GROUP BY", "WHERE"], "answer": "ORDER BY", "explanation": "ORDER BY orders output.", "difficulty": "easy"}, {"question": "What does SELECT DISTINCT do?", "options": ["Removes duplicates", "Returns all rows", "Groups rows", "Counts rows"], "answer": "Removes duplicates", "explanation": "DISTINCT retains only unique value patterns.", "difficulty": "medium"}],
+        4: [{"question": "Which JOIN returns only matching records from both tables?", "options": ["INNER JOIN", "LEFT JOIN", "FULL JOIN", "CROSS JOIN"], "answer": "INNER JOIN", "explanation": "INNER JOIN requires a key match in both datasets.", "difficulty": "easy"}, {"question": "Which JOIN returns unmatched rows from the first table with NULL columns for the second table?", "options": ["LEFT JOIN", "RIGHT JOIN", "INNER JOIN", "CROSS JOIN"], "answer": "LEFT JOIN", "explanation": "LEFT OUTER JOIN preserves unmatched left rows.", "difficulty": "medium"}, {"question": "What is a CROSS JOIN?", "options": ["Cartesian product", "Key union", "Intersection", "None"], "answer": "Cartesian product", "explanation": "CROSS JOIN pairs every left row with every right row.", "difficulty": "hard"}],
+        5: [{"question": "Which function calculates the average of a column?", "options": ["AVG()", "MEAN()", "SUM()", "COUNT()"], "answer": "AVG()", "explanation": "AVG calculates numerical averages.", "difficulty": "easy"}, {"question": "Which clause groups duplicate rows into summary rows?", "options": ["GROUP BY", "HAVING", "ORDER BY", "WHERE"], "answer": "GROUP BY", "explanation": "GROUP BY aggregates common rows.", "difficulty": "easy"}, {"question": "Why use HAVING instead of WHERE?", "options": ["Filters aggregates", "Faster", "Allows NULLs", "Groups rows"], "answer": "Filters aggregates", "explanation": "HAVING evaluates aggregated expressions after GROUP BY.", "difficulty": "hard"}],
+        6: [{"question": "What is a correlated subquery?", "options": ["References outer query", "Independent query", "Speeds up lookups", "View query"], "answer": "References outer query", "explanation": "Runs once per outer row, accessing its values.", "difficulty": "hard"}, {"question": "Which operator returns true if a subquery returns any rows?", "options": ["EXISTS", "IN", "ANY", "ALL"], "answer": "EXISTS", "explanation": "EXISTS checks row presence.", "difficulty": "medium"}, {"question": "What is a nested query?", "options": ["Query inside query", "Joined query", "Indexed query", "Recursive query"], "answer": "Query inside query", "explanation": "Query inside another query's SELECT/WHERE/FROM.", "difficulty": "easy"}],
+        7: [{"question": "Which DML command changes existing records?", "options": ["UPDATE", "INSERT", "ALTER", "CHANGE"], "answer": "UPDATE", "explanation": "UPDATE modifies row values.", "difficulty": "easy"}, {"question": "How is TRUNCATE different from DELETE?", "options": ["TRUNCATE is DDL", "DELETE is DDL", "TRUNCATE fires triggers", "None"], "answer": "TRUNCATE is DDL", "explanation": "TRUNCATE drops table storage space.", "difficulty": "hard"}, {"question": "Which DML statement deletes rows conditionally?", "options": ["DELETE", "TRUNCATE", "DROP", "REMOVE"], "answer": "DELETE", "explanation": "DELETE filters rows using WHERE.", "difficulty": "easy"}],
+        8: [{"question": "What is an Index?", "options": ["Search acceleration structure", "Data copy", "Temporary view", "Trigger"], "answer": "Search acceleration structure", "explanation": "B-Trees speed up row lookups.", "difficulty": "medium"}, {"question": "What is a View?", "options": ["Virtual table", "Index copy", "Stored function", "Trigger"], "answer": "Virtual table", "explanation": "Views represent stored queries.", "difficulty": "easy"}, {"question": "Explain SELECT analysis command?", "options": ["EXPLAIN", "SHOW", "DESCRIBE", "DEBUG"], "answer": "EXPLAIN", "explanation": "EXPLAIN shows query plans.", "difficulty": "medium"}],
+        9: [{"question": "What does Atomicity in ACID mean?", "options": ["All or nothing", "State consistency", "Locks transactions", "Durability"], "answer": "All or nothing", "explanation": "Atomicity treats all steps as one unit.", "difficulty": "easy"}, {"question": "Which Isolation anomaly is prevented by preventing uncommitted reads?", "options": ["Dirty Read", "Phantom Read", "Non-repeatable Read", "None"], "answer": "Dirty Read", "explanation": "Dirty Reads read uncommitted changes.", "difficulty": "medium"}, {"question": "Which isolation level is most restrictive?", "options": ["SERIALIZABLE", "REPEATABLE READ", "READ COMMITTED", "READ UNCOMMITTED"], "answer": "SERIALIZABLE", "explanation": "SERIALIZABLE serializes all transactions.", "difficulty": "hard"}],
+        10: [{"question": "What is a CTE in SQL?", "options": ["Common Table Expression", "Create Table Expression", "Context Table Element", "None"], "answer": "Common Table Expression", "explanation": "WITH cte AS definitions.", "difficulty": "medium"}, {"question": "Which is a valid ranking window function?", "options": ["ROW_NUMBER()", "SUM()", "COUNT()", "AVG()"], "answer": "ROW_NUMBER()", "explanation": "ROW_NUMBER assigns serial numbers.", "difficulty": "medium"}, {"question": "What keyword defines window function boundaries?", "options": ["OVER", "PARTITION", "ORDER", "WINDOW"], "answer": "OVER", "explanation": "OVER specifies the window partition.", "difficulty": "easy"}]
+    }
+
+    # 7. MONGODB QUIZZES
+    mongodb_quizzes = {
+        1: [
+            {"question": "What type of database is MongoDB?", "options": ["Document-oriented", "Relational", "Key-Value", "Graph"], "answer": "Document-oriented", "explanation": "MongoDB stores data in flexible document structures.", "difficulty": "easy", "type": "theory"},
+            {"question": "What binary JSON-like format does MongoDB use to store documents?", "options": ["BSON", "JSON", "XML", "YAML"], "answer": "BSON", "explanation": "BSON represents Binary JSON, adding indexing and types.", "difficulty": "easy", "type": "theory"},
+            {"question": "Which relational concept corresponds to a MongoDB collection?", "options": ["A table", "A database", "A row", "A column"], "answer": "A table", "explanation": "Collections group documents, analogous to SQL tables.", "difficulty": "easy", "type": "theory"},
+            {"question": "What is the size limit for a single BSON document in MongoDB?", "options": ["16MB", "4MB", "8MB", "32MB"], "answer": "16MB", "explanation": "MongoDB enforces a hard 16MB document size limit.", "difficulty": "medium", "type": "theory"},
+            {"question": "What field is automatically generated as a primary key in MongoDB documents?", "options": ["_id", "id", "uuid", "key"], "answer": "_id", "explanation": "_id serves as the unique primary key.", "difficulty": "easy", "type": "theory"},
+            {"question": "What data type represents Date values in MongoDB BSON?", "options": ["UTC Date Time", "String", "Numeric", "Epoch seconds"], "answer": "UTC Date Time", "explanation": "BSON date represents Epoch milliseconds.", "difficulty": "medium", "type": "theory"},
+            {"question": "What is horizontal scalability in MongoDB called?", "options": ["Sharding", "Replication", "Indexing", "Normalization"], "answer": "Sharding", "explanation": "Sharding distributes data horizontally across shards.", "difficulty": "easy", "type": "theory"},
+            {"question": "What architecture construct manages consensus and high availability?", "options": ["Replica Sets", "Shards", "Routers", "Config Servers"], "answer": "Replica Sets", "explanation": "Replica sets copy data to prevent data loss.", "difficulty": "medium", "type": "theory"},
+            {"question": "Which of the following is true about MongoDB schemas?", "options": ["They are dynamic", "They are strictly typed", "They must be defined in advance", "They do not support nesting"], "answer": "They are dynamic", "explanation": "MongoDB allows documents in the same collection to vary in fields.", "difficulty": "easy", "type": "theory"},
+            {"question": "How many bytes compose a standard MongoDB ObjectId?", "options": ["12", "16", "8", "24"], "answer": "12", "explanation": "ObjectId is a 12-byte binary representation.", "difficulty": "medium", "type": "theory"}
+        ],
+        2: [{"question": "What BSON type is unique and includes timestamps?", "options": ["ObjectId", "Decimal128", "Date", "Binary"], "answer": "ObjectId", "explanation": "Includes Timestamp, Machine, PID, Counter.", "difficulty": "medium"}, {"question": "Embedding documents improves which aspect of performance?", "options": ["Read latency", "Write latency", "Storage efficiency", "None"], "answer": "Read latency", "explanation": "Avoids joining data.", "difficulty": "medium"}, {"question": "What is referencing in MongoDB?", "options": ["Linking ObjectIds", "Nesting documents", "Indexes", "Sharding"], "answer": "Linking ObjectIds", "explanation": "Similar to foreign keys.", "difficulty": "easy"}],
+        3: [{"question": "Which command inserts a single document?", "options": ["insertOne", "insert", "insertMany", "push"], "answer": "insertOne", "explanation": "insertOne is the standard CRUD command.", "difficulty": "easy"}, {"question": "What query operator filters values greater than a threshold?", "options": ["$gt", "$gte", "$lt", "$in"], "answer": "$gt", "explanation": "$gt is Greater Than.", "difficulty": "easy"}, {"question": "What query operator checks if an element is in an array?", "options": ["$in", "$all", "$exists", "$type"], "answer": "$in", "explanation": "$in maps matching values.", "difficulty": "medium"}],
+        4: [{"question": "Which operator updates or creates a field value?", "options": ["$set", "$inc", "$unset", "$push"], "answer": "$set", "explanation": "$set modifies field values.", "difficulty": "easy"}, {"question": "What does $inc do?", "options": ["Increments numeric field", "Adds array item", "Removes field", "Renames field"], "answer": "$inc", "explanation": "$inc increments numbers.", "difficulty": "easy"}, {"question": "Which operator appends items to arrays uniquely?", "options": ["$addToSet", "$push", "$pull", "$pop"], "answer": "$addToSet", "explanation": "$addToSet avoids duplicate insertions.", "difficulty": "medium"}],
+        5: [{"question": "Which index covers array fields?", "options": ["Multikey Index", "Compound Index", "Single Field Index", "Text Index"], "answer": "Multikey Index", "explanation": "Multikey indexes map array elements.", "difficulty": "medium"}, {"question": "How do you create an index in MongoDB?", "options": ["createIndex", "addIndex", "buildIndex", "Index"], "answer": "createIndex", "explanation": "createIndex builds indexes.", "difficulty": "easy"}, {"question": "Compound indexes index how many fields?", "options": ["Multiple fields", "Single field", "All fields", "Array elements"], "answer": "Multiple fields", "explanation": "Compound indexes store ordered combinations.", "difficulty": "medium"}],
+        6: [{"question": "What pipeline stage filters documents?", "options": ["$match", "$group", "$sort", "$project"], "answer": "$match", "explanation": "$match acts as WHERE filters.", "difficulty": "easy"}, {"question": "What stage aggregates grouped documents?", "options": ["$group", "$match", "$unwind", "$lookup"], "answer": "$group", "explanation": "$group aggregates documents.", "difficulty": "easy"}, {"question": "How do you order documents in pipelines?", "options": ["$sort", "$order", "$group", "$match"], "answer": "$sort", "explanation": "$sort orders outputs.", "difficulty": "easy"}],
+        7: [{"question": "Which pipeline stage joins collection documents?", "options": ["$lookup", "$unwind", "$project", "$match"], "answer": "$lookup", "explanation": "$lookup performs joins.", "difficulty": "medium"}, {"question": "What stage flattens arrays into document streams?", "options": ["$unwind", "$lookup", "$project", "$group"], "answer": "$unwind", "explanation": "$unwind outputs a document per array item.", "difficulty": "medium"}, {"question": "What does $project do?", "options": ["Reshapes outputs", "Filters rows", "Groups rows", "Joins tables"], "answer": "$project", "explanation": "$project maps properties.", "difficulty": "easy"}],
+        8: [{"question": "What modeling style matches 1:Few relations?", "options": ["Embedding", "Referencing", "Sharding", "None"], "answer": "Embedding", "explanation": "Embedding avoids reference overhead.", "difficulty": "easy"}, {"question": "What modeling style prevents unbounded document growth?", "options": ["Referencing", "Embedding", "Indexing", "None"], "answer": "Referencing", "explanation": "Referencing scales past 16MB limits.", "difficulty": "medium"}, {"question": "Why denormalize NoSQL databases?", "options": ["Read performance", "Write speed", "Integrity", "None"], "answer": "Read performance", "explanation": "Reduces collection hops.", "difficulty": "medium"}],
+        9: [{"question": "Which node handles all write operations in a Replica Set?", "options": ["Primary", "Secondary", "Arbiter", "Config"], "answer": "Primary", "explanation": "Only primary accepts writes.", "difficulty": "easy"}, {"question": "What consensus process elects a new Primary node?", "options": ["Consensus Election", "Consensus Heartbeat", "Replication", "Router"], "answer": "Consensus Election", "explanation": "Replica sets elect automatically.", "difficulty": "medium"}, {"question": "Does MongoDB support multi-document transactions?", "options": ["Yes, since 4.0", "No", "Only single documents", "Yes, since 1.0"], "answer": "Yes, since 4.0", "explanation": "Enables multi-collection sessions.", "difficulty": "hard"}],
+        10: [{"question": "What scaling mechanism splits collections horizontally?", "options": ["Sharding", "Replication", "Indexing", "Transactions"], "answer": "Sharding", "explanation": "Sharding partitions data space.", "difficulty": "easy"}, {"question": "Which component routes queries to correct shards?", "options": ["mongos query router", "Config Servers", "Primary node", "Arbiter"], "answer": "mongos query router", "explanation": "mongos handles chunk routing.", "difficulty": "medium"}, {"question": "What config servers store?", "options": ["Cluster metadata", "Oplogs", "Database views", "Triggers"], "answer": "Cluster metadata", "explanation": "Stores cluster routing states.", "difficulty": "hard"}]
+    }
+
     # SELECTION logic
     quizzes = {}
     if "python" in lang_lower: quizzes = python_quizzes
@@ -971,6 +1076,8 @@ def get_module_quiz(language, topic_type, module_title, module_number):
     elif "go" in lang_lower: quizzes = go_quizzes
     elif "typescript" in lang_lower or "ts" in lang_lower: quizzes = ts_quizzes
     elif "c " in f" {lang_lower} " or lang_lower == "c": quizzes = c_quizzes
+    elif "sql" in lang_lower: quizzes = sql_quizzes
+    elif "mongodb" in lang_lower or "mongo" in lang_lower: quizzes = mongodb_quizzes
     
     qs = quizzes.get(module_number, [])
     

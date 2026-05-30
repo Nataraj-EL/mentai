@@ -1748,3 +1748,222 @@ Note: TotalSupply is just a uint variable tracking the sum.
 """
 }
 
+# 12. SQL
+sql_theory = {
+    1: """# Module 1: Introduction to Relational Databases and SQL
+## 1. The Relational Model
+Relational databases store data in tables (relations) consisting of rows (tuples) and columns (attributes).
+*   **Tables**: Stored in schema boundaries.
+*   **Keys**: Primary Keys uniquely identify rows; Foreign Keys build cross-table relationships.
+*   **SQL (Structured Query Language)**: The standardized language used to manage and query relational data.
+
+## 2. SQL Sublanguages
+*   **DDL (Data Definition Language)**: `CREATE`, `ALTER`, `DROP` definitions.
+*   **DML (Data Manipulation Language)**: `INSERT`, `UPDATE`, `DELETE` operations.
+*   **DQL (Data Query Language)**: `SELECT` queries.
+*   **DCL / TCL**: Control permissions and transaction boundaries (`COMMIT`, `ROLLBACK`).
+""",
+    2: """# Module 2: Designing Relational Schemas (DDL & Constraints)
+## 1. Schema Definition & Data Types
+Tables are declared with strict column data types:
+*   Numeric: `INT`, `DECIMAL(p,s)`, `FLOAT`.
+*   String: `VARCHAR(n)`, `CHAR(n)`, `TEXT`.
+*   Temporal: `DATE`, `TIMESTAMP`, `TIME`.
+
+## 2. Integrity Constraints
+Enforce business rules at the database level:
+*   `PRIMARY KEY`: Enforces uniqueness and non-nullability.
+*   `UNIQUE`: Prevents duplicate values across rows.
+*   `NOT NULL`: Guarantees a field is never empty.
+*   `FOREIGN KEY`: Enforces referential integrity pointing to a parent key.
+*   `CHECK`: Validates value ranges (e.g., `CHECK (price > 0)`).
+""",
+    3: """# Module 3: Basic Querying (SELECT & Filtering)
+## 1. Projection & Selection
+*   **Projection**: Choosing columns to return: `SELECT column1, column2 FROM table;`.
+*   **Selection**: Filtering rows based on expressions: `SELECT * FROM table WHERE condition;`.
+
+## 2. Filtering Operators
+*   Comparison: `=`, `<>`, `>`, `<`, `>=`, `<=`.
+*   Logical: `AND`, `OR`, `NOT`.
+*   Pattern Matching: `LIKE '%pattern%'` (case-insensitive search with wildcards).
+*   Ranges and Sets: `BETWEEN low AND high`, `IN (val1, val2)`.
+""",
+    4: """# Module 4: Joins and Relationships
+## 1. Combining Tables
+Relational databases split data across tables to minimize redundancy. JOINs stitch them back together at query time.
+
+## 2. Join Types
+*   **INNER JOIN**: Returns only rows where there is a match in both tables.
+*   **LEFT (OUTER) JOIN**: Returns all rows from the left table, plus matched rows from the right table. Unmatched right rows receive `NULL`.
+*   **RIGHT JOIN**: Symmetric counterpart to LEFT JOIN.
+*   **FULL OUTER JOIN**: Returns rows from both tables, filling in `NULL` where matches are absent.
+*   **CROSS JOIN**: Computes Cartesian product of both tables.
+""",
+    5: """# Module 5: Aggregations and Grouping
+## 1. Aggregate Functions
+Perform computations on a set of values and return a single summary value:
+*   `COUNT()`, `SUM()`, `AVG()`, `MIN()`, `MAX()`.
+
+## 2. GROUP BY and HAVING
+*   **GROUP BY**: Groups rows that share values into summary rows.
+*   **HAVING**: Filters grouped summaries *after* aggregation (unlike `WHERE`, which filters raw rows *before* aggregation).
+""",
+    6: """# Module 6: Subqueries and Nested Queries
+## 1. Nested Queries
+Queries nested inside another query's `SELECT`, `FROM`, or `WHERE` clause.
+
+## 2. Operators
+*   `IN` / `NOT IN`: Checks membership in nested results.
+*   `EXISTS` / `NOT EXISTS`: Evaluates true if the subquery returns any rows.
+*   `ANY` / `ALL`: Compare a single value against a set of returned values.
+*   **Correlated Subqueries**: Nested queries that reference columns from the outer query, executing once per outer row.
+""",
+    7: """# Module 7: Modifying Data (DML)
+## 1. Modifying State
+DML statements alter table data rows while preserving schema structures:
+*   `INSERT INTO table (cols) VALUES (vals);`
+*   `UPDATE table SET col = val WHERE condition;`
+*   `DELETE FROM table WHERE condition;`
+
+## 2. TRUNCATE vs DELETE
+*   `DELETE`: A logged DML operation that deletes rows conditionally, firing triggers.
+*   `TRUNCATE`: A fast DDL operation that drops the table space and re-creates it, wiping all rows instantly without scanning or firing triggers.
+""",
+    8: """# Module 8: Views, Indexes, and Performance
+## 1. Indexes
+B-Tree or Hash structures that accelerate search lookups at the expense of write overhead and storage.
+*   `CREATE INDEX idx_name ON table(col);`
+
+## 2. Views
+Virtual tables defined by a saved SELECT query. They simplify complex queries and restrict column visibility for security.
+
+## 3. Query Optimization
+Using `EXPLAIN SELECT ...` to analyze execution plans, identify sequential table scans, and utilize index lookups.
+""",
+    9: """# Module 9: Transactions and Concurrency
+## 1. ACID Properties
+Guarantees database reliability under failures and concurrent operations:
+*   **Atomicity**: All operations succeed, or none do (All-or-Nothing).
+*   **Consistency**: State transitions strictly respect schema constraints.
+*   **Isolation**: Concurrent execution results in the same state as sequential execution.
+*   **Durability**: Committed changes persist permanently, even through system crashes.
+
+## 2. Isolation Levels
+Prevent concurrency anomalies (Dirty Reads, Non-repeatable Reads, Phantom Reads):
+*   `READ UNCOMMITTED`, `READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABLE`.
+""",
+    10: """# Module 10: Advanced SQL (Window Functions & CTEs)
+## 1. Window Functions
+Perform calculations across a set of table rows related to the current row without grouping:
+*   Syntax: `SUM(val) OVER (PARTITION BY group ORDER BY val)`
+*   Ranking: `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`.
+
+## 2. Common Table Expressions (CTEs)
+Provide temporary named result sets that exist only within the execution scope of a single query:
+*   Syntax: `WITH cte_name AS (SELECT ...) SELECT * FROM cte_name;`
+*   Recursive CTEs: Permit hierarchical tree traversals (e.g., org charts, nested category trees).
+"""
+}
+
+# 13. MONGODB
+mongodb_theory = {
+    1: """# Module 1: Introduction to NoSQL and MongoDB
+## 1. NoSQL Paradigm
+NoSQL databases offer horizontal scalability, schema flexibility, and high availability, sacrificing strict ACID compliance in some setups (CAP Theorem).
+
+## 2. MongoDB Architecture
+MongoDB is a document-oriented database.
+*   **Documents**: Stored in a JSON-like format called BSON (Binary JSON).
+*   **Collections**: Unstructured groupings of documents (analogous to tables).
+*   **Dynamic Schema**: Documents in the same collection can have different fields and nested sub-documents.
+""",
+    2: """# Module 2: The Document Model and BSON Types
+## 1. BSON Format
+BSON extends JSON by adding binary indexing and supporting additional data types:
+*   `ObjectId`: 12-byte unique identifier containing timestamp, machine ID, process ID, and increment counters.
+*   `Date`: 64-bit integer representing epoch milliseconds.
+*   `Decimal128`, `Int32`, `Int64`, `Binary data`.
+
+## 2. Embedding vs Referencing
+*   **Embedding**: Nesting documents inside a parent document (improves read latency via single-fetch lookup).
+*   **Referencing**: Linking documents across collections using ObjectIds (avoids duplication but requires additional lookups).
+""",
+    3: """# Module 3: CRUD Operations - Create and Read
+## 1. Inserting Documents
+*   `db.collection.insertOne({ ... })`
+*   `db.collection.insertMany([ ... ])`
+
+## 2. Querying Documents
+*   `db.collection.find(filter, projection)`
+*   Comparison: `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin`.
+*   Logical: `$and`, `$or`, `$not`, `$nor`.
+""",
+    4: """# Module 4: CRUD Operations - Update and Delete
+## 1. Updating Documents
+*   `db.collection.updateOne(filter, update)`
+*   `db.collection.updateMany(filter, update)`
+*   Field Modifiers: `$set` (updates or creates a field), `$unset` (removes a field), `$inc` (increments a numeric value).
+
+## 2. Array Modifiers
+*   `$push`: Appends an item to an array.
+*   `$pull`: Removes matching items from an array.
+*   `$addToSet`: Appends an item only if it does not already exist in the array (ensuring uniqueness).
+""",
+    5: """# Module 5: Indexing and Performance
+## 1. Indexes in MongoDB
+Like relational indexes, they avoid full collection scans by storing indexed fields in sorted B-Tree order.
+
+## 2. Index Types
+*   **Single Field**: Index on a single attribute.
+*   **Compound**: Index on multiple attributes to support multi-field queries.
+*   **Multikey**: Index on array elements.
+*   **Text & Geospatial**: Optimized for full-text search or coordinate lookups.
+*   Command: `db.collection.createIndex({ field: 1 })`
+""",
+    6: """# Module 6: Aggregation Framework - Matching and Grouping
+## 1. Aggregation Pipelines
+Data processing pipelines consisting of stages that transform document streams sequentially.
+
+## 2. Pipeline Stages
+*   `$match`: Filters documents using standard query operators (corresponds to WHERE).
+*   `$group`: Groups input documents by a specified identifier expression and performs calculations (corresponds to GROUP BY).
+*   `$sort`: Orders input documents (corresponds to ORDER BY).
+""",
+    7: """# Module 7: Aggregation Framework - Advanced Stages
+## 1. Advanced Pipeline Operations
+*   `$unwind`: Deconstructs an array field from input documents, outputting a separate document for each array element.
+*   `$project`: Reshapes document streams by renaming, adding, or removing fields (corresponds to SELECT projection).
+*   `$lookup`: Performs a left outer join to combine documents from another collection within the same database.
+""",
+    8: """# Module 8: NoSQL Data Modeling
+## 1. Relationship Modeling
+*   **One-to-Few**: Embed children documents inside parent.
+*   **One-to-Many**: Store an array of reference ObjectIds in parent.
+*   **One-to-Very-Many**: Store parent reference ObjectId in each child document.
+
+## 2. Schema Design Rules
+*   Prefer embedding by default unless relationships dictate referencing.
+*   Avoid nesting documents beyond 16MB (the hard document size limit in MongoDB).
+""",
+    9: """# Module 9: Transactions and Replica Sets
+## 1. High Availability
+Replica Sets are clusters of MongoDB processes that maintain the same data set:
+*   **Primary Node**: Handles all writes.
+*   **Secondary Nodes**: Replicate the primary's oplog and handle read queries (for read scalability).
+*   **Consensus**: Secondary nodes automatically elect a new primary node in <2 seconds if the primary drops offline.
+
+## 2. Multi-Document Transactions
+MongoDB supports ACID transactions across multiple collections using session objects (since 4.0).
+""",
+    10: """# Module 10: Sharding and Scaling
+## 1. Horizontal Scaling
+Sharding distributes collection data across a cluster of separate machines (shards).
+
+## 2. Sharding Components
+*   **Shards**: Individual servers storing partitions of the database.
+*   **Config Servers**: Store cluster metadata and chunk routing details.
+*   **Query Router (mongos)**: Interfaces with clients, routing requests to appropriate shards based on Shard Keys.
+"""
+}
+

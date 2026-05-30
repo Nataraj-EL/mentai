@@ -146,7 +146,8 @@ class AIOrchestrator:
                     "title": "Lab Title",
                     "description": "Instructions...",
                     "tasks": ["Task 1", "Task 2"],
-                    "expected_outcome": "Outcome"
+                    "expected_outcome": "Outcome",
+                    "preloaded_code": "starter code..."
                  }}
             ]
         }}
@@ -161,26 +162,36 @@ class AIOrchestrator:
         return self._safe_parse_json(raw_output, {"code_examples": [], "mini_labs": []})
 
     def generate_complete_module(self, topic, language, module_title, module_number):
-        """Orchestrates parallel provider calls."""
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_theory = executor.submit(self.generate_theory, topic, language, module_title, module_number)
-            future_quizzes = executor.submit(self.generate_quizzes, topic, language, module_title, module_number)
-            future_labs = executor.submit(self.generate_labs, topic, language, module_title, module_number)
-
-            theory_data = future_theory.result()
-            quizzes_data = future_quizzes.result()
-            labs_data = future_labs.result()
-            
-            print(f"[DEBUG] theory_data keys: {theory_data.keys()}")
-            print(f"[DEBUG] quizzes_data keys: {quizzes_data.keys()}")
-            print(f"[DEBUG] quizzes_data content: {quizzes_data}")
-            print(f"[DEBUG] labs_data keys: {labs_data.keys()}")
+        """Orchestrates sequential provider calls with brief pauses to avoid rate limits."""
+        import time
+        
+        theory_data = self.generate_theory(topic, language, module_title, module_number)
+        time.sleep(0.5)
+        quizzes_data = self.generate_quizzes(topic, language, module_title, module_number)
+        time.sleep(0.5)
+        labs_data = self.generate_labs(topic, language, module_title, module_number)
+        
+        print(f"[DEBUG] theory_data keys: {theory_data.keys() if isinstance(theory_data, dict) else 'not a dict'}")
+        print(f"[DEBUG] quizzes_data keys: {quizzes_data.keys() if isinstance(quizzes_data, dict) else 'not a dict'}")
+        print(f"[DEBUG] labs_data keys: {labs_data.keys() if isinstance(labs_data, dict) else 'not a dict'}")
 
         # Merge results into a unified module dict
         combined = {}
-        combined.update(theory_data if theory_data else {})
-        combined.update(quizzes_data if quizzes_data else {})
-        combined.update(labs_data if labs_data else {})
+        if isinstance(theory_data, dict):
+            combined.update(theory_data)
+        elif theory_data:
+            combined["theory"] = str(theory_data)
+
+        if isinstance(quizzes_data, dict):
+            combined.update(quizzes_data)
+        elif isinstance(quizzes_data, list):
+            combined["quizzes"] = quizzes_data
+
+        if isinstance(labs_data, dict):
+            combined.update(labs_data)
+        elif isinstance(labs_data, list):
+            combined["mini_labs"] = labs_data
+            
         return combined
 
     # -- Internal Callers with Retry/Failover --

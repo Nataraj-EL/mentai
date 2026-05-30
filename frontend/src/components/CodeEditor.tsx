@@ -87,19 +87,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-lg shadow-lg overflow-hidden"
+      className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
     >
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+      <div className="bg-white px-4 py-3 border-b border-gray-150">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">{title}</h3>
-            <p className="text-blue-100 text-sm">{(language || '').toUpperCase()}</p>
+            <h3 className="text-sm font-bold text-[#111827]">{title || "Interactive Code Sandbox"}</h3>
+            <p className="text-[11px] text-gray-400 font-mono font-medium">{(language || '').toUpperCase()}</p>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
             >
               {isExpanded ? 'Collapse' : 'Expand'}
             </button>
@@ -108,8 +108,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* Explanation */}
-      <div className="p-4 bg-gray-50 border-b">
-        <p className="text-gray-700">{explanation}</p>
+      <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <p className="text-sm text-gray-600 leading-relaxed">{explanation}</p>
       </div>
 
       {/* Code Editor */}
@@ -134,7 +134,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* Controls */}
-      <div className="p-4 bg-gray-50 border-t">
+      <div className="p-4 bg-gray-50 border-t border-gray-200">
         <div className="flex items-center justify-between">
           {/* Only show Run/Clear buttons if not readOnly */}
           {!readOnly && (
@@ -142,21 +142,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
               <button
                 onClick={runCode}
                 disabled={isLoading}
-                className="px-4 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-1.5 bg-[#06B6D4] text-[#111827] rounded text-sm font-semibold hover:bg-[#06b6d4]/90 disabled:opacity-50 flex items-center gap-2 shadow-sm transition-all"
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Running...
+                    <div className="w-3.5 h-3.5 border-2 border-[#111827]/30 border-t-[#111827] rounded-full animate-spin" />
+                    <span>Running...</span>
                   </>
                 ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Run Code
-                  </>
+                  <span>Run Code</span>
                 )}
               </button>
 
@@ -176,10 +170,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
-          className="p-4 bg-gray-900 text-green-400 font-mono text-sm border-t"
+          className="p-4 bg-[#111827] text-green-400 font-mono text-sm border-t border-gray-200"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold">Output:</span>
+            <span className="font-semibold text-gray-300">Output:</span>
             <button
               onClick={() => setOutput('')}
               className="text-gray-400 hover:text-white"
