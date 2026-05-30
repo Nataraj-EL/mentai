@@ -1,13 +1,13 @@
-# MentAI — AI-Powered Interactive Learning Buddy
+# MentAI - AI-Powered Interactive Learning Buddy
 
 MentAI is a modern, high-fidelity interactive educational platform designed to generate university-grade courses, interactive laboratories, and assessment quizzes dynamically. The platform features an ultra-minimalistic and elegant visual design system, a custom local database caching system, full Monaco Editor code compiling integrations, and comprehensive PDF report generation.
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. Dynamic Course & Lesson Builder
-- **AI Course Orchestration**: Dynamically generates full 10-module university-grade curricula on any search topic (from Java to MongoDB, SQL database design, or complex software architectures).
+- **AI Course Orchestration**: Dynamically generates full 10-module university-grade curriculum on any search topic (from Java to MongoDB, SQL database design, or complex software architectures).
 - **Intelligent Local Cache**: Utilizes a highly optimized local database caching system. Generating an existing course retrieves records instantly in `< 15ms`, protecting the platform from sequential LLM rate-limiting.
 
 ### 2. University-Grade Theory Lessons
@@ -35,7 +35,7 @@ MentAI is a modern, high-fidelity interactive educational platform designed to g
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Frontend
 - **Framework**: Next.js, React (TypeScript)
@@ -51,7 +51,7 @@ MentAI is a modern, high-fidelity interactive educational platform designed to g
 
 ---
 
-## 📦 Installation & Setup
+## Installation & Setup
 
 ### 1. Prerequisites
 - **Python** (version 3.10 or higher)
